@@ -701,8 +701,10 @@
           </ul>
         </div>
         <div class="bg-white/5 border border-white/10 rounded-xl p-3">
-          <h4 class="font-bold text-amber-300 mb-1">4. 카드 점수 &amp; 배수</h4>
-          <p class="text-slate-300">A = 1점, 2~10 = 숫자 그대로, J = 11점, Q = 12점, K = 13점, 조커 = 20점. 승자는 패자들의 남은 손패 점수를 모두 획득하며, 훌라 승리 시 2배, 미등록 패자(바가지)에게서 2배가 적용됩니다.</p>
+          <h4 class="font-bold text-amber-300 mb-1">4. 순위 차등 정산 &amp; 배수</h4>
+          <p class="text-slate-300">남은 손패 합계(A=1, 2~10=숫자, J=11, Q=12, K=13, 조커=20)가 낮을수록 높은 순위가 됩니다.<br/>
+          <strong>1등 우승</strong>(패자 포인트 전부 획득) / <strong>2등 -500P</strong> / <strong>3등 -1,000P</strong> / <strong>4등 -1,500P</strong> / <strong>5등 -2,000P</strong>.<br/>
+          훌라 승리 시 전체 ×2배, 미등록 패자(바가지) ×2배가 적용되며, 스톱 실패(독박) 시 스톱을 외친 사람이 전체 패자 몫을 혼자 부담합니다.</p>
         </div>
       </div>
     </div>
@@ -2063,7 +2065,7 @@
 
         if (state.phase === 'round_over' && state.lastResultModal) {
           const r = state.lastResultModal;
-          showResultModal(r.winnerIdx, r.deltas, r.title, r.subtitle, r.isHula, Boolean(r.aborted));
+          showResultModal(r.winnerIdx, r.deltas, r.title, r.subtitle, r.isHula, Boolean(r.aborted), r.ranks || null);
         } else {
           document.getElementById('result-modal').classList.add('hidden');
         }
@@ -2716,6 +2718,67 @@
         return player.hasMeldedBeforeThisTurn || player.meldedThisTurn || pts <= 10;
       }
 
+      const RANK_BASE_STEP = 500; // 2등 -500P, 3등 -1,000P, 4등 -1,500P, 5등 -2,000P
+
+      function formatPts(val) {
+        const sign = val > 0 ? '+' : '';
+        return `${sign}${val.toLocaleString('ko-KR')}P`;
+      }
+
+      /**
+       * Computes rank-tiered settlement (1등 우승, 2등 -500P, 3등 -1000P, 4등 -1500P, 5등 -2000P).
+       * Returns { deltas: number[], ranks: number[] } (1-based rank per player index).
+       */
+      function computeRankSettlement(winnerIdx, { isHula = false, applyBagaji = true, dokbakCallerIdx = null } = {}) {
+        const n = state.players.length;
+        const deltas = new Array(n).fill(0);
+        const ranks = new Array(n).fill(1);
+
+        // Sort all non-winners by remaining hand points asc (tie-break: fewer cards, then melded)
+        const others = state.players
+          .map((p, idx) => ({
+            idx,
+            pts: handPoints(p.hand),
+            cards: p.hand.length,
+            melded: p.hasMeldedBeforeThisTurn || p.meldedThisTurn
+          }))
+          .filter(o => o.idx !== winnerIdx)
+          .sort((a, b) => {
+            if (a.pts !== b.pts) return a.pts - b.pts;
+            if (a.cards !== b.cards) return a.cards - b.cards;
+            if (a.melded !== b.melded) return a.melded ? -1 : 1;
+            return a.idx - b.idx;
+          });
+
+        ranks[winnerIdx] = 1;
+        const hulaMult = isHula ? 2 : 1;
+        let wonTotal = 0;
+
+        others.forEach((o, pos) => {
+          const rank = pos + 2; // 2, 3, 4, 5
+          ranks[o.idx] = rank;
+          const baseLoss = (rank - 1) * RANK_BASE_STEP;
+          const bagajiMult = (applyBagaji && !o.melded) ? 2 : 1;
+          const loss = baseLoss * hulaMult * bagajiMult;
+
+          if (dokbakCallerIdx !== null) {
+            wonTotal += baseLoss; // Dokbak: caller absorbs all rank losses
+          } else {
+            deltas[o.idx] = -loss;
+            wonTotal += loss;
+          }
+        });
+
+        if (dokbakCallerIdx !== null) {
+          deltas[dokbakCallerIdx] = -wonTotal;
+          deltas[winnerIdx] = wonTotal;
+        } else {
+          deltas[winnerIdx] = wonTotal;
+        }
+
+        return { deltas, ranks };
+      }
+
       function executeStop(playerIdx) {
         const caller = state.players[playerIdx];
         if (!canPlayerStop(caller)) {
@@ -2742,34 +2805,20 @@
         });
 
         const isSuccess = callerPts < lowestOther;
-        const roundDeltas = state.players.map(() => 0);
 
         if (isSuccess) {
-          let wonTotal = 0;
-          state.players.forEach((p, idx) => {
-            if (idx === playerIdx) return;
-            const mult = (!p.hasMeldedBeforeThisTurn && !p.meldedThisTurn) ? 2 : 1;
-            const loss = handPoints(p.hand) * mult;
-            roundDeltas[idx] = -loss;
-            wonTotal += loss;
-          });
-          roundDeltas[playerIdx] = wonTotal;
-          applyRoundScores(roundDeltas, playerIdx, '스톱 승리!', `${caller.name}님이 ${callerPts}점으로 최저점 스톱에 성공했습니다!`);
+          const { deltas, ranks } = computeRankSettlement(playerIdx, { isHula: false, applyBagaji: true });
+          applyRoundScores(deltas, playerIdx, '스톱 승리!', `${caller.name}님이 ${callerPts}점으로 최저점 스톱에 성공했습니다!`, false, ranks);
         } else {
           const winnerIdx = lowestOtherIdx;
-          let penalty = 0;
-          state.players.forEach((p, idx) => {
-            if (idx === winnerIdx) return;
-            penalty += handPoints(p.hand);
-          });
-          penalty = Math.max(penalty, 20);
-          roundDeltas[playerIdx] = -penalty;
-          roundDeltas[winnerIdx] = penalty;
+          const { deltas, ranks } = computeRankSettlement(winnerIdx, { isHula: false, applyBagaji: false, dokbakCallerIdx: playerIdx });
           applyRoundScores(
-            roundDeltas,
+            deltas,
             winnerIdx,
             '스톱 실패 (독박!)',
-            `${caller.name}님(${callerPts}점)보다 ${state.players[winnerIdx].name}님(${lowestOther}점)이 낮아 독박 패배했습니다!`
+            `${caller.name}님(${callerPts}점)보다 ${state.players[winnerIdx].name}님(${lowestOther}점)이 낮아 전체 패자 몫을 독박 부담했습니다!`,
+            false,
+            ranks
           );
         }
       }
@@ -2779,29 +2828,18 @@
         state.phase = 'round_over';
         const winner = state.players[winnerIdx];
         const isHula = !winner.hasMeldedBeforeThisTurn;
-        const hulaMult = isHula ? 2 : 1;
-
-        const roundDeltas = state.players.map(() => 0);
-        let wonTotal = 0;
-        state.players.forEach((p, idx) => {
-          if (idx === winnerIdx) return;
-          const bagajiMult = (!p.hasMeldedBeforeThisTurn && !p.meldedThisTurn) ? 2 : 1;
-          const loss = handPoints(p.hand) * hulaMult * bagajiMult;
-          roundDeltas[idx] = -loss;
-          wonTotal += loss;
-        });
-        roundDeltas[winnerIdx] = wonTotal;
+        const { deltas, ranks } = computeRankSettlement(winnerIdx, { isHula, applyBagaji: true });
 
         sfx.win();
         if (typeof confetti === 'function') {
           confetti({ particleCount: isHula ? 130 : 70, spread: isHula ? 90 : 65, origin: { y: 0.6 } });
         }
 
-        const title = isHula ? `🎉 훌라! (HULA!)` : `${winner.name} 승리!`;
+        const title = isHula ? `🎉 훌라! (HULA!)` : `${winner.name} 1등 우승!`;
         const sub = isHula
-          ? `${winner.name}님이 단 한 턴에 모든 패를 털어내며 2배 훌라 승리를 거뒀습니다!`
-          : `${winner.name}님이 손패를 모두 비우며 라운드를 가져갔습니다.`;
-        applyRoundScores(roundDeltas, winnerIdx, title, sub, isHula);
+          ? `${winner.name}님이 단 한 턴에 모든 패를 털어내며 2배 훌라 우승을 거뒀습니다!`
+          : `${winner.name}님이 손패를 모두 비우며 순위 차등 정산으로 우승했습니다.`;
+        applyRoundScores(deltas, winnerIdx, title, sub, isHula, ranks);
       }
 
       function finishRoundByDeckEmpty() {
@@ -2819,25 +2857,19 @@
           }
         });
 
-        const roundDeltas = state.players.map(() => 0);
-        let wonTotal = 0;
-        state.players.forEach((p, idx) => {
-          if (idx === winnerIdx) return;
-          const loss = handPoints(p.hand);
-          roundDeltas[idx] = -loss;
-          wonTotal += loss;
-        });
-        roundDeltas[winnerIdx] = wonTotal;
+        const { deltas, ranks } = computeRankSettlement(winnerIdx, { isHula: false, applyBagaji: false });
 
         applyRoundScores(
-          roundDeltas,
+          deltas,
           winnerIdx,
-          '카드 소진 — 최저점 승리!',
-          `중앙 카드 더미가 소진되어 ${state.players[winnerIdx].name}님이 ${minPts}점으로 승리했습니다.`
+          '카드 소진 — 1등 우승!',
+          `중앙 카드 더미가 소진되어 ${state.players[winnerIdx].name}님이 ${minPts}점으로 1등 우승했습니다.`,
+          false,
+          ranks
         );
       }
 
-      function applyRoundScores(deltas, winnerIdx, title, subtitle, isHula = false) {
+      function applyRoundScores(deltas, winnerIdx, title, subtitle, isHula = false, ranks = null) {
         state.players.forEach((p, idx) => {
           p.totalScore += deltas[idx];
         });
@@ -2847,11 +2879,11 @@
           title,
           deltas: [...deltas]
         });
-        state.lastResultModal = { winnerIdx, deltas, title, subtitle, isHula };
+        state.lastResultModal = { winnerIdx, deltas, title, subtitle, isHula, ranks };
 
         renderGame();
         broadcastGameState(title, 'success', 'win');
-        showResultModal(winnerIdx, deltas, title, subtitle, isHula);
+        showResultModal(winnerIdx, deltas, title, subtitle, isHula, false, ranks);
       }
 
       /* ==================== AI ENGINE ==================== */
@@ -3095,7 +3127,7 @@
                   <span class="text-xs font-bold text-white truncate">${escapeHTML(p.name)}</span>
                 </div>
                 <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/40 text-amber-300 shrink-0">
-                  ${p.totalScore >= 0 ? '+' : ''}${p.totalScore}
+                  ${formatPts(p.totalScore)}
                 </span>
               </div>
               <div class="flex items-center justify-between gap-2 mt-0.5">
@@ -3298,14 +3330,22 @@
       }
 
       /* ==================== MODALS ==================== */
-      function showResultModal(winnerIdx, deltas, title, subtitle, isHula, aborted = false) {
-        document.getElementById('result-badge').textContent = aborted ? '⚠️ 상대방 이탈' : (isHula ? '🔥 HULA 2배 보너스' : `${state.round} 라운드 종료`);
+      function showResultModal(winnerIdx, deltas, title, subtitle, isHula, aborted = false, ranks = null) {
+        document.getElementById('result-badge').textContent = aborted ? '⚠️ 상대방 이탈' : (isHula ? '🔥 HULA 2배 보너스' : `${state.round} 라운드 종료 (순위 차등)`);
         document.getElementById('result-title').textContent = title;
         document.getElementById('result-subtitle').textContent = subtitle;
 
+        const order = state.players.map((_, idx) => idx).sort((a, b) => {
+          const ra = ranks ? ranks[a] : (a === winnerIdx ? 1 : 2);
+          const rb = ranks ? ranks[b] : (b === winnerIdx ? 1 : 2);
+          return ra - rb;
+        });
+
         const list = document.getElementById('result-players-list');
-        list.innerHTML = state.players.map((p, idx) => {
+        list.innerHTML = order.map(idx => {
+          const p = state.players[idx];
           const isWinner = idx === winnerIdx;
+          const rankNum = ranks ? ranks[idx] : null;
           const delta = deltas[idx] || 0;
           const handStr = p.hand.length === 0
             ? '<span class="text-emerald-300 font-bold">손패 없음 (0점)</span>'
@@ -3317,22 +3357,22 @@
           return `
             <div class="rounded-xl p-3 border ${isWinner ? 'bg-amber-500/15 border-amber-400/50' : 'bg-white/5 border-white/10'}">
               <div class="flex items-center justify-between gap-2">
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 flex-wrap">
+                  ${rankNum && !aborted ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-black ${rankNum === 1 ? 'bg-amber-400 text-slate-950' : 'bg-white/15 text-slate-200'}">${rankNum}등${rankNum === 1 ? ' 우승' : ''}</span>` : ''}
                   <span class="text-lg">${escapeHTML(p.avatar)}</span>
                   <span class="font-bold text-sm text-white">${escapeHTML(p.name)}</span>
-                  ${isWinner ? '<span class="px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 text-[10px] font-black">WIN</span>' : ''}
-                  ${!isWinner && !p.hasMeldedBeforeThisTurn && !p.meldedThisTurn ? '<span class="px-1.5 py-0.5 rounded bg-rose-500/30 text-rose-200 text-[10px] font-bold">바가지 2배</span>' : ''}
+                  ${!aborted && !isWinner && !p.hasMeldedBeforeThisTurn && !p.meldedThisTurn ? '<span class="px-1.5 py-0.5 rounded bg-rose-500/30 text-rose-200 text-[10px] font-bold">바가지 2배</span>' : ''}
                 </div>
-                <div class="text-right">
+                <div class="text-right shrink-0">
                   <span class="text-sm font-black ${delta >= 0 ? 'text-emerald-300' : 'text-rose-400'}">
-                    ${delta >= 0 ? '+' : ''}${delta}점
+                    ${formatPts(delta)}
                   </span>
-                  <span class="block text-[10px] text-slate-400">누적 ${p.totalScore >= 0 ? '+' : ''}${p.totalScore}점</span>
+                  <span class="block text-[10px] text-slate-400">누적 ${formatPts(p.totalScore)}</span>
                 </div>
               </div>
               <div class="mt-2 flex flex-wrap gap-1 items-center text-xs">
                 ${handStr}
-                ${p.hand.length > 0 ? `<span class="text-[11px] text-slate-400 ml-1">(${handPoints(p.hand)}점)</span>` : ''}
+                ${p.hand.length > 0 ? `<span class="text-[11px] text-slate-400 ml-1">(잔여 ${handPoints(p.hand)}점)</span>` : ''}
               </div>
             </div>
           `;
@@ -3362,7 +3402,7 @@
                 <span class="font-bold text-sm text-white">${escapeHTML(p.name)}</span>
               </div>
               <span class="font-black text-base ${p.totalScore >= 0 ? 'text-emerald-300' : 'text-rose-400'}">
-                ${p.totalScore >= 0 ? '+' : ''}${p.totalScore}점
+                ${formatPts(p.totalScore)}
               </span>
             </div>
           `).join('');
