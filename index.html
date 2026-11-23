@@ -6,7 +6,7 @@
   <title>훌라 5 (HULA 5) — 최대 5인 온라인 대기실 &amp; 훌라 카드게임</title>
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mqtt@4.3.7/dist/mqtt.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
@@ -321,6 +321,26 @@
               <button id="btn-join-room" type="button" class="w-full py-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-sm shadow-lg shadow-sky-500/20 transition active:scale-[0.99]">
                 대기실 입장하기
               </button>
+            </div>
+          </div>
+
+          <!-- Relay Server Selector (My server.js WS vs Public EMQX) -->
+          <div class="bg-black/30 border border-white/10 rounded-xl p-3 space-y-2">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <span class="text-[11px] font-bold text-emerald-200">연결 서버 방식</span>
+              <div class="flex gap-1">
+                <button id="btn-transport-custom" type="button" class="px-2.5 py-1 rounded-lg text-[11px] font-bold border transition">
+                  🖥️ 내 서버 (server.js)
+                </button>
+                <button id="btn-transport-public" type="button" class="px-2.5 py-1 rounded-lg text-[11px] font-bold border transition">
+                  🌐 공용 중계 (EMQX)
+                </button>
+              </div>
+            </div>
+            <div id="custom-ws-url-row" class="hidden flex items-center gap-1.5">
+              <input id="input-ws-url" type="text" placeholder="wss://내도메인/ws (또는 wss://내도메인)"
+                class="flex-1 min-w-0 bg-slate-900/90 border border-white/15 focus:border-amber-400 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-100 outline-none" />
+              <span class="text-[10px] text-slate-400 shrink-0">자동저장</span>
             </div>
           </div>
 
@@ -763,36 +783,8 @@
       const RANK_LABELS = { 0: 'JOKER', 1: 'A', 2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 8: '8', 9: '9', 10: '10', 11: 'J', 12: 'Q', 13: 'K' };
       const DEFAULT_NAMES = ['나 (Player 1)', '민수', '지은', '도윤', '서연'];
       const AVATARS = ['😎', '🦊', '🐼', '🐯', '🐰', '🐸', '🦁', '🐙'];
-      const PEER_PREFIX = 'hula5-kr-room-';
-      const PEER_OPTIONS = {
-        debug: 0,
-        pingInterval: 5000,
-        config: {
-          iceCandidatePoolSize: 10,
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:stun.cloudflare.com:3478' },
-            { urls: 'stun:global.stun.twilio.com:3478' },
-            {
-              urls: 'turn:openrelay.metered.ca:80',
-              username: 'openrelayproject',
-              credential: 'openrelayproject'
-            },
-            {
-              urls: 'turn:openrelay.metered.ca:443',
-              username: 'openrelayproject',
-              credential: 'openrelayproject'
-            },
-            {
-              urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-              username: 'openrelayproject',
-              credential: 'openrelayproject'
-            }
-          ]
-        }
-      };
+      const MQTT_BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
+      const TOPIC_PREFIX = 'hula5kr/v2/';
 
       class SoundFX {
         constructor() {
@@ -879,16 +871,46 @@
       };
 
       /* ==================== ONLINE MULTIPLAYER (PeerJS) STATE ==================== */
+      function detectDefaultTransport() {
+        try {
+          const saved = localStorage.getItem('hula5_transport');
+          if (saved === 'custom_ws' || saved === 'public_mqtt') return saved;
+        } catch (_) {}
+        try {
+          const h = window.location.hostname || '';
+          if (window.location.protocol === 'https:' && h && !h.includes('googleusercontent') && !h.includes('localhost') && !h.includes('127.0.0.1')) {
+            return 'custom_ws';
+          }
+        } catch (_) {}
+        return 'public_mqtt';
+      }
+
+      function detectDefaultWsUrl() {
+        try {
+          const saved = localStorage.getItem('hula5_ws_url');
+          if (saved) return saved;
+        } catch (_) {}
+        try {
+          if (window.location.protocol === 'https:' && window.location.host && !window.location.hostname.includes('googleusercontent')) {
+            return `wss://${window.location.host}`;
+          }
+        } catch (_) {}
+        return '';
+      }
+
       const net = {
         mode: 'offline', // 'offline' | 'online'
+        transport: detectDefaultTransport(), // 'custom_ws' | 'public_mqtt'
+        customWsUrl: detectDefaultWsUrl(),
         role: null,      // 'host' | 'guest' | null
         roomCode: '',
-        peer: null,
-        hostConn: null,  // guest -> host connection
-        conns: new Map(), // host: peerId -> DataConnection
-        myPeerId: '',
+        ws: null,        // Native WebSocket to user's server.js
+        wsPingTimer: null,
+        wsReconnectTimer: null,
+        client: null,    // MQTT.js client over WSS
+        guestIds: new Set(), // host: connected guest clientIds
+        myPeerId: '',    // unique clientId for this browser
         wakeLock: null,
-        reconnectTimer: null,
         joinRetryTimer: null,
         chatMessages: [], // { sender, avatar, text, system, time }
         unreadChat: false,
@@ -1263,12 +1285,20 @@
         return null;
       }
 
-      /* ==================== ONLINE NETWORK LAYER (PeerJS) ==================== */
+      /* ==================== ONLINE NETWORK LAYER (MQTT over WSS Relay) ==================== */
+      function roomTopic(code, sub) {
+        return `${TOPIC_PREFIX}${code}/${sub}`;
+      }
+
+      function makeClientId(prefix) {
+        return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+      }
+
       function updateConnectionPill(status) {
         const pill = document.getElementById('wr-connection-pill');
         if (!pill) return;
         if (status === 'connected') {
-          pill.textContent = '🟢 연결됨';
+          pill.textContent = net.transport === 'custom_ws' ? '🟢 내 서버(server.js)' : '🟢 공용 중계(EMQX)';
           pill.className = 'px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-[11px] font-bold';
         } else if (status === 'reconnecting') {
           pill.textContent = '🟡 재연결 중...';
@@ -1295,37 +1325,144 @@
         }
       }
 
-      function ensurePeerSignalingAlive(showNotice = false) {
-        if (net.mode !== 'online' || !net.peer || net.peer.destroyed) return;
-        if (net.peer.disconnected) {
-          updateConnectionPill('reconnecting');
-          try {
-            net.peer.reconnect();
-            if (showNotice) showToast('시그널링 서버에 다시 연결했습니다.', 'info');
-          } catch (_) {}
-        } else {
-          updateConnectionPill('connected');
-          if (showNotice) showToast('방 연결이 정상 유지 중입니다.', 'success');
+      function wsSend(obj) {
+        if (net.ws && net.ws.readyState === WebSocket.OPEN) {
+          try { net.ws.send(JSON.stringify(obj)); } catch (_) {}
         }
       }
 
-      function cleanupNetwork() {
+      function mqttPublish(topic, payloadObj) {
+        if (!net.client || !net.client.connected) return;
+        try {
+          net.client.publish(topic, JSON.stringify(payloadObj), { qos: 0 });
+        } catch (_) {}
+      }
+
+      // Unified transport senders (route to server.js WS or EMQX MQTT)
+      function netSendBroadcast(payloadObj) {
+        if (net.transport === 'custom_ws') {
+          wsSend({ t: 'hula_broadcast', payload: payloadObj });
+        } else {
+          mqttPublish(roomTopic(net.roomCode, 'broadcast'), payloadObj);
+        }
+      }
+
+      function netSendToGuest(guestId, payloadObj) {
+        if (net.transport === 'custom_ws') {
+          wsSend({ t: 'hula_to_guest', to: guestId, payload: payloadObj });
+        } else {
+          mqttPublish(roomTopic(net.roomCode, `to/${guestId}`), payloadObj);
+        }
+      }
+
+      function netSendToHost(payloadObj) {
+        if (net.transport === 'custom_ws') {
+          wsSend({ t: 'hula_to_host', payload: payloadObj });
+        } else {
+          mqttPublish(roomTopic(net.roomCode, 'toHost'), { from: net.myPeerId, ...payloadObj });
+        }
+      }
+
+      function startWsHeartbeat() {
+        if (net.wsPingTimer) clearInterval(net.wsPingTimer);
+        net.wsPingTimer = setInterval(() => {
+          if (net.ws && net.ws.readyState === WebSocket.OPEN) {
+            wsSend({ t: 'hula_ping' });
+          }
+        }, 10000);
+      }
+
+      function reconnectCustomWsHost() {
+        if (net.mode !== 'online' || net.transport !== 'custom_ws' || net.role !== 'host' || !net.roomCode) return;
+        if (net.ws && (net.ws.readyState === WebSocket.OPEN || net.ws.readyState === WebSocket.CONNECTING)) return;
+        updateConnectionPill('reconnecting');
+        try {
+          const ws = new WebSocket(net.customWsUrl);
+          net.ws = ws;
+          ws.onopen = () => {
+            startWsHeartbeat();
+            wsSend({ t: 'hula_rehost', code: net.roomCode });
+          };
+          ws.onmessage = ev => {
+            let msg;
+            try { msg = JSON.parse(ev.data); } catch (_) { return; }
+            if (msg.t === 'hula_rehosted') {
+              updateConnectionPill('connected');
+              broadcastRoomState();
+              if (net.room.status === 'playing') broadcastGameState();
+            } else if (msg.t === 'hula_from_guest' && msg.from && msg.payload) {
+              handleHostIncomingMessage(msg.from, msg.payload);
+            }
+          };
+          ws.onclose = () => {
+            if (net.mode === 'online' && net.role === 'host') {
+              updateConnectionPill('reconnecting');
+              net.wsReconnectTimer = setTimeout(reconnectCustomWsHost, 2000);
+            }
+          };
+        } catch (_) {}
+      }
+
+      function ensurePeerSignalingAlive(showNotice = false) {
+        if (net.mode !== 'online') return;
+        if (net.transport === 'custom_ws') {
+          if (net.ws && net.ws.readyState === WebSocket.OPEN) {
+            updateConnectionPill('connected');
+            wsSend({ t: 'hula_ping' });
+            if (net.role === 'host') {
+              broadcastRoomState();
+              if (net.room.status === 'playing') broadcastGameState();
+            }
+            if (showNotice) showToast('내 서버(server.js) 연결이 정상입니다.', 'success');
+          } else if (net.role === 'host') {
+            reconnectCustomWsHost();
+            if (showNotice) showToast('내 서버(server.js)에 방을 자동 재연결 중입니다...', 'info');
+          } else {
+            updateConnectionPill('disconnected');
+            if (showNotice) showToast('서버 연결이 끊어졌습니다. 방 코드로 다시 입장해주세요.', 'warn');
+          }
+          return;
+        }
+        if (!net.client) return;
+        if (net.client.connected) {
+          updateConnectionPill('connected');
+          if (net.role === 'host') {
+            broadcastRoomState();
+            if (net.room.status === 'playing') broadcastGameState();
+          }
+          if (showNotice) showToast('중계 서버 연결이 정상입니다.', 'success');
+        } else {
+          updateConnectionPill('reconnecting');
+          try { net.client.reconnect(); } catch (_) {}
+          if (showNotice) showToast('중계 서버에 다시 연결 중입니다...', 'info');
+        }
+      }
+
+      function cleanupNetwork(sendLeave = true) {
         clearTimers();
         releaseScreenWakeLock();
-        if (net.reconnectTimer) { clearTimeout(net.reconnectTimer); net.reconnectTimer = null; }
         if (net.joinRetryTimer) { clearInterval(net.joinRetryTimer); net.joinRetryTimer = null; }
-        if (net.hostConn) {
-          try { net.hostConn.close(); } catch (_) {}
-          net.hostConn = null;
+        if (net.wsPingTimer) { clearInterval(net.wsPingTimer); net.wsPingTimer = null; }
+        if (net.wsReconnectTimer) { clearTimeout(net.wsReconnectTimer); net.wsReconnectTimer = null; }
+        if (net.ws) {
+          if (sendLeave && net.ws.readyState === WebSocket.OPEN) {
+            wsSend({ t: 'hula_leave' });
+          }
+          try { net.ws.onclose = null; net.ws.close(); } catch (_) {}
+          net.ws = null;
         }
-        for (const conn of net.conns.values()) {
-          try { conn.close(); } catch (_) {}
+        if (net.client) {
+          if (sendLeave && net.client.connected && net.roomCode) {
+            if (net.role === 'host') {
+              mqttPublish(roomTopic(net.roomCode, 'broadcast'), { type: 'HOST_CLOSED' });
+            } else if (net.role === 'guest') {
+              mqttPublish(roomTopic(net.roomCode, 'toHost'), { from: net.myPeerId, type: 'LEAVE' });
+            }
+          }
+          try { net.client.end(true); } catch (_) {}
+          net.client = null;
         }
-        net.conns.clear();
-        if (net.peer) {
-          try { net.peer.destroy(); } catch (_) {}
-          net.peer = null;
-        }
+        net.guestIds.clear();
         net.mode = 'offline';
         net.role = null;
         net.roomCode = '';
@@ -1340,177 +1477,243 @@
       }
 
       function createOnlineRoom() {
-        if (typeof Peer === 'undefined') {
-          setOnlineStatus('온라인 연결 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하거나 오프라인 모드를 이용하세요.', true);
+        if (typeof mqtt === 'undefined') {
+          setOnlineStatus('실시간 연결 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인해주세요.', true);
           return;
         }
         const nick = document.getElementById('input-nickname').value.trim() || profile.nickname;
         profile.nickname = nick;
         saveProfile(profile.nickname, profile.avatar);
 
-        cleanupNetwork();
+        cleanupNetwork(false);
         const code = String(Math.floor(1000 + Math.random() * 9000));
-        const peerId = PEER_PREFIX + code;
-        setOnlineStatus(`대기실 #${code} 생성 중...`);
+        const clientId = makeClientId('h5host');
+
+        if (net.transport === 'custom_ws') {
+          const wsUrl = (document.getElementById('input-ws-url').value || net.customWsUrl || '').trim();
+          if (!/^wss?:\/\//.test(wsUrl)) {
+            setOnlineStatus('내 서버 WebSocket 주소(예: wss://도메인/ws)를 입력하거나 공용 중계(EMQX)를 선택해주세요.', true);
+            return;
+          }
+          net.customWsUrl = wsUrl;
+          try { localStorage.setItem('hula5_ws_url', wsUrl); } catch (_) {}
+          setOnlineStatus(`내 서버에 대기실 #${code} 생성 중...`);
+          try {
+            const ws = new WebSocket(wsUrl);
+            net.ws = ws;
+            net.mode = 'online';
+            net.role = 'host';
+            net.roomCode = code;
+            net.myPeerId = clientId;
+
+            const connTimeout = setTimeout(() => {
+              if (ws.readyState !== WebSocket.OPEN) {
+                setOnlineStatus('내 서버(server.js)에 연결할 수 없습니다. 주소를 확인하거나 공용 중계(EMQX)를 사용해보세요.', true);
+                cleanupNetwork(false);
+              }
+            }, 8000);
+
+            ws.onopen = () => {
+              clearTimeout(connTimeout);
+              startWsHeartbeat();
+              wsSend({ t: 'hula_host', code });
+            };
+            ws.onmessage = ev => {
+              let msg;
+              try { msg = JSON.parse(ev.data); } catch (_) { return; }
+              if (msg.t === 'hula_hosted') {
+                updateConnectionPill('connected');
+                requestScreenWakeLock();
+                net.room = {
+                  maxPlayers: 5,
+                  jokerCount: 2,
+                  allowWrap: true,
+                  status: 'waiting',
+                  seats: [{
+                    peerId: 'HOST',
+                    name: profile.nickname,
+                    avatar: profile.avatar,
+                    isAI: false,
+                    isHost: true,
+                    ready: true
+                  }]
+                };
+                setOnlineStatus('');
+                addChatMessage({ system: true, text: `내 서버(server.js) 대기실 #${code} 생성 완료! 친구들에게 방 코드를 공유하세요.` });
+                openWaitingRoomScreen();
+                sfx.meld();
+              } else if (msg.t === 'hula_code_taken') {
+                createOnlineRoom();
+              } else if (msg.t === 'hula_from_guest' && msg.from && msg.payload) {
+                handleHostIncomingMessage(msg.from, msg.payload);
+              }
+            };
+            ws.onerror = () => {
+              clearTimeout(connTimeout);
+              setOnlineStatus('내 서버 WebSocket 연결에 실패했습니다. 주소(/ws 등)를 확인해주세요.', true);
+            };
+            ws.onclose = () => {
+              clearTimeout(connTimeout);
+              if (net.mode === 'online' && net.role === 'host') {
+                updateConnectionPill('reconnecting');
+                net.wsReconnectTimer = setTimeout(reconnectCustomWsHost, 1800);
+              }
+            };
+          } catch (_) {
+            setOnlineStatus('WebSocket 주소 형식이 올바르지 않습니다. (예: wss://도메인/ws)', true);
+          }
+          return;
+        }
+
+        setOnlineStatus(`중계 서버에 대기실 #${code} 생성 중...`);
 
         try {
-          const peer = new Peer(peerId, PEER_OPTIONS);
-          net.peer = peer;
+          const client = mqtt.connect(MQTT_BROKER_URL, {
+            clientId,
+            clean: true,
+            connectTimeout: 10000,
+            reconnectPeriod: 1500,
+            keepalive: 25,
+            will: {
+              topic: roomTopic(code, 'broadcast'),
+              payload: JSON.stringify({ type: 'HOST_CLOSED' }),
+              qos: 0,
+              retain: false
+            }
+          });
+
+          net.client = client;
           net.mode = 'online';
           net.role = 'host';
           net.roomCode = code;
+          net.myPeerId = clientId;
 
-          peer.on('open', id => {
-            net.myPeerId = id;
+          let openedOnce = false;
+
+          client.on('connect', () => {
             updateConnectionPill('connected');
             requestScreenWakeLock();
-            if (net.room.seats.length === 0) {
-              net.room = {
-                maxPlayers: 5,
-                jokerCount: 2,
-                allowWrap: true,
-                status: 'waiting',
-                seats: [{
-                  peerId: 'HOST',
-                  name: profile.nickname,
-                  avatar: profile.avatar,
-                  isAI: false,
-                  isHost: true,
-                  ready: true
-                }]
-              };
-              setOnlineStatus('');
-              addChatMessage({ system: true, text: `대기실 #${code}이 열렸습니다! 방 코드를 공유하세요. (폰에서 카톡으로 이동했다 돌아와도 자동 재연결됩니다)` });
-              openWaitingRoomScreen();
-              sfx.meld();
-            }
-          });
-
-          peer.on('connection', conn => {
-            handleHostIncomingConnection(conn);
-          });
-
-          peer.on('disconnected', () => {
-            if (net.mode !== 'online' || !net.peer || net.peer.destroyed) return;
-            updateConnectionPill('reconnecting');
-            net.reconnectTimer = setTimeout(() => {
-              if (net.peer && !net.peer.destroyed && net.peer.disconnected) {
-                try { net.peer.reconnect(); } catch (_) {}
+            client.subscribe(roomTopic(code, 'toHost'), err => {
+              if (err) {
+                setOnlineStatus('방 채널 구독에 실패했습니다. 다시 시도해주세요.', true);
+                return;
               }
-            }, 1200);
+              if (!openedOnce) {
+                openedOnce = true;
+                net.room = {
+                  maxPlayers: 5,
+                  jokerCount: 2,
+                  allowWrap: true,
+                  status: 'waiting',
+                  seats: [{
+                    peerId: 'HOST',
+                    name: profile.nickname,
+                    avatar: profile.avatar,
+                    isAI: false,
+                    isHost: true,
+                    ready: true
+                  }]
+                };
+                setOnlineStatus('');
+                addChatMessage({ system: true, text: `대기실 #${code}이 열렸습니다! 폰/PC 어디서든 방 코드만 입력하면 바로 접속됩니다.` });
+                openWaitingRoomScreen();
+                sfx.meld();
+              } else {
+                broadcastRoomState();
+                if (net.room.status === 'playing') broadcastGameState();
+              }
+            });
           });
 
-          peer.on('error', err => {
-            if (err && err.type === 'unavailable-id') {
-              createOnlineRoom();
-              return;
-            }
-            if (err && (err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error')) {
-              updateConnectionPill('reconnecting');
-              setTimeout(() => ensurePeerSignalingAlive(false), 1500);
-              return;
-            }
-            setOnlineStatus(`연결 오류: ${err && err.message ? err.message : '서버에 접속할 수 없습니다.'}`, true);
-            showToast('온라인 연결에 문제가 발생했습니다.', 'error');
+          client.on('message', (topic, rawPayload) => {
+            let msg;
+            try { msg = JSON.parse(rawPayload.toString()); } catch (_) { return; }
+            if (!msg || typeof msg !== 'object' || !msg.from) return;
+            handleHostIncomingMessage(msg.from, msg);
           });
-        } catch (err) {
+
+          client.on('reconnect', () => {
+            updateConnectionPill('reconnecting');
+          });
+
+          client.on('offline', () => {
+            updateConnectionPill('reconnecting');
+          });
+
+          client.on('error', err => {
+            if (!openedOnce) {
+              setOnlineStatus(`중계 서버 연결 오류: ${err && err.message ? err.message : '네트워크를 확인해주세요.'}`, true);
+            }
+          });
+        } catch (_) {
           setOnlineStatus('온라인 대기실을 시작할 수 없습니다. 인터넷 연결을 확인해주세요.', true);
         }
       }
 
-      function handleHostIncomingConnection(conn) {
-        // Register immediately so data arriving right as open fires is never missed on mobile WebRTC
-        net.conns.set(conn.peer, conn);
-
-        conn.on('open', () => {
-          net.conns.set(conn.peer, conn);
-        });
-
-        conn.on('data', msg => {
-          if (!msg || typeof msg !== 'object') return;
-          net.conns.set(conn.peer, conn);
-
-          if (msg.type === 'PING') {
-            try { conn.send({ type: 'PONG' }); } catch (_) {}
+      function handleHostIncomingMessage(guestId, msg) {
+        if (msg.type === 'JOIN') {
+          net.guestIds.add(guestId);
+          const existing = net.room.seats.find(s => s.peerId === guestId);
+          if (existing) {
+            netSendToGuest(guestId, {
+              type: 'ROOM_SYNC',
+              room: net.room,
+              chatHistory: net.chatMessages.slice(-40)
+            });
             return;
           }
 
-          if (msg.type === 'JOIN') {
-            // If this peer already joined (e.g., retried JOIN packet), just re-sync room state
-            const existing = net.room.seats.find(s => s.peerId === conn.peer);
-            if (existing) {
-              try {
-                conn.send({ type: 'ROOM_SYNC', room: net.room, chatHistory: net.chatMessages.slice(-40) });
-              } catch (_) {}
-              return;
-            }
-
-            if (net.room.status !== 'waiting') {
-              try { conn.send({ type: 'REJECT', reason: '이미 게임이 진행 중인 방입니다.' }); } catch (_) {}
-              setTimeout(() => { try { conn.close(); } catch (_) {} }, 300);
-              return;
-            }
-            if (net.room.seats.length >= net.room.maxPlayers) {
-              const aiIdx = net.room.seats.findIndex(s => s.isAI);
-              if (aiIdx !== -1) {
-                net.room.seats.splice(aiIdx, 1);
-              } else {
-                try { conn.send({ type: 'REJECT', reason: `방 정원(${net.room.maxPlayers}명)이 가득 찼습니다.` }); } catch (_) {}
-                setTimeout(() => { try { conn.close(); } catch (_) {} }, 300);
-                return;
-              }
-            }
-            const name = String(msg.name || '유저').slice(0, 12);
-            const avatar = AVATARS.includes(msg.avatar) ? msg.avatar : AVATARS[net.room.seats.length % AVATARS.length];
-            net.room.seats.push({
-              peerId: conn.peer,
-              name,
-              avatar,
-              isAI: false,
-              isHost: false,
-              ready: false
+          if (net.room.status !== 'waiting') {
+            netSendToGuest(guestId, {
+              type: 'REJECT',
+              reason: '이미 게임이 진행 중인 방입니다.'
             });
-            addChatMessage({ system: true, text: `${avatar} ${name}님이 입장했습니다.` });
-            broadcastRoomState();
-            sfx.thankyou();
-          } else if (msg.type === 'TOGGLE_READY') {
-            const seat = net.room.seats.find(s => s.peerId === conn.peer);
-            if (seat) {
-              seat.ready = !seat.ready;
-              broadcastRoomState();
-              sfx.select();
-            }
-          } else if (msg.type === 'CHAT') {
-            const seat = net.room.seats.find(s => s.peerId === conn.peer);
-            const sender = seat ? seat.name : '참가자';
-            const avatar = seat ? seat.avatar : '👤';
-            const text = String(msg.text || '').trim().slice(0, 80);
-            if (text) {
-              const entry = { sender, avatar, text, system: false };
-              addChatMessage(entry);
-              broadcastChatMessage(entry);
-              sfx.chat();
-            }
-          } else if (msg.type === 'ACTION') {
-            handleRemoteGameAction(conn.peer, msg);
+            net.guestIds.delete(guestId);
+            return;
           }
-        });
 
-        conn.on('close', () => {
-          net.conns.delete(conn.peer);
+          if (net.room.seats.length >= net.room.maxPlayers) {
+            const aiIdx = net.room.seats.findIndex(s => s.isAI);
+            if (aiIdx !== -1) {
+              net.room.seats.splice(aiIdx, 1);
+            } else {
+              netSendToGuest(guestId, {
+                type: 'REJECT',
+                reason: `방 정원(${net.room.maxPlayers}명)이 가득 찼습니다.`
+              });
+              net.guestIds.delete(guestId);
+              return;
+            }
+          }
+
+          const name = String(msg.name || '유저').slice(0, 12);
+          const avatar = AVATARS.includes(msg.avatar) ? msg.avatar : AVATARS[net.room.seats.length % AVATARS.length];
+          net.room.seats.push({
+            peerId: guestId,
+            name,
+            avatar,
+            isAI: false,
+            isHost: false,
+            ready: false
+          });
+          addChatMessage({ system: true, text: `${avatar} ${name}님이 입장했습니다.` });
+          broadcastRoomState();
+          sfx.thankyou();
+        } else if (msg.type === 'LEAVE') {
+          net.guestIds.delete(guestId);
           if (net.room.status === 'waiting') {
-            const idx = net.room.seats.findIndex(s => s.peerId === conn.peer);
+            const idx = net.room.seats.findIndex(s => s.peerId === guestId);
             if (idx !== -1) {
               const removed = net.room.seats.splice(idx, 1)[0];
               addChatMessage({ system: true, text: `${removed.name}님이 퇴장했습니다.` });
               broadcastRoomState();
             }
           } else if (net.room.status === 'playing') {
-            const p = state.players.find(pl => pl.peerId === conn.peer);
+            const p = state.players.find(pl => pl.peerId === guestId);
             if (p && !p.isAI) {
               p.isAI = true;
               p.name = `${p.name} (AI대행)`;
-              const msgTxt = `${p.name} — 연결이 끊겨 AI가 대신 진행합니다.`;
+              const msgTxt = `${p.name} — 퇴장하여 AI가 대신 진행합니다.`;
               addChatMessage({ system: true, text: msgTxt });
               broadcastChatMessage({ system: true, text: msgTxt });
               broadcastGameState(msgTxt, 'warn');
@@ -1519,12 +1722,32 @@
               }
             }
           }
-        });
+        } else if (msg.type === 'TOGGLE_READY') {
+          const seat = net.room.seats.find(s => s.peerId === guestId);
+          if (seat) {
+            seat.ready = !seat.ready;
+            broadcastRoomState();
+            sfx.select();
+          }
+        } else if (msg.type === 'CHAT') {
+          const seat = net.room.seats.find(s => s.peerId === guestId);
+          const sender = seat ? seat.name : '참가자';
+          const avatar = seat ? seat.avatar : '👤';
+          const text = String(msg.text || '').trim().slice(0, 80);
+          if (text) {
+            const entry = { sender, avatar, text, system: false };
+            addChatMessage(entry);
+            broadcastChatMessage(entry);
+            sfx.chat();
+          }
+        } else if (msg.type === 'ACTION') {
+          handleRemoteGameAction(guestId, msg);
+        }
       }
 
       function joinOnlineRoom(rawCode) {
-        if (typeof Peer === 'undefined') {
-          setOnlineStatus('온라인 연결 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인해주세요.', true);
+        if (typeof mqtt === 'undefined') {
+          setOnlineStatus('실시간 연결 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인해주세요.', true);
           return;
         }
         const code = String(rawCode || '').replace(/\D/g, '').slice(0, 4);
@@ -1537,39 +1760,123 @@
         profile.nickname = nick;
         saveProfile(profile.nickname, profile.avatar);
 
-        cleanupNetwork();
-        setOnlineStatus(`시그널링 서버 접속 중... (방 #${code})`);
+        cleanupNetwork(false);
+        const clientId = makeClientId('h5guest');
+
+        if (net.transport === 'custom_ws') {
+          const wsUrl = (document.getElementById('input-ws-url').value || net.customWsUrl || '').trim();
+          if (!/^wss?:\/\//.test(wsUrl)) {
+            setOnlineStatus('내 서버 WebSocket 주소(예: wss://도메인/ws)를 입력하거나 공용 중계(EMQX)를 선택해주세요.', true);
+            return;
+          }
+          net.customWsUrl = wsUrl;
+          try { localStorage.setItem('hula5_ws_url', wsUrl); } catch (_) {}
+          setOnlineStatus(`내 서버 접속 중... (방 #${code})`);
+          try {
+            const ws = new WebSocket(wsUrl);
+            net.ws = ws;
+            net.mode = 'online';
+            net.role = 'guest';
+            net.roomCode = code;
+            net.myPeerId = clientId;
+
+            let synced = false;
+            const timeoutId = setTimeout(() => {
+              if (!synced) {
+                setOnlineStatus(`방 #${code} 응답 시간 초과 — 서버 주소와 방 코드를 확인해주세요.`, true);
+                cleanupNetwork(false);
+              }
+            }, 10000);
+
+            ws.onopen = () => {
+              startWsHeartbeat();
+              setOnlineStatus(`방 #${code} 입장 요청 중...`);
+              wsSend({ t: 'hula_join', code, clientId, name: profile.nickname, avatar: profile.avatar });
+            };
+            ws.onmessage = ev => {
+              let msg;
+              try { msg = JSON.parse(ev.data); } catch (_) { return; }
+              if (msg.t === 'hula_msg' && msg.payload) {
+                if (msg.payload.type === 'ROOM_SYNC') {
+                  synced = true;
+                  clearTimeout(timeoutId);
+                  updateConnectionPill('connected');
+                } else if (msg.payload.type === 'REJECT') {
+                  clearTimeout(timeoutId);
+                }
+                handleGuestMessage(msg.payload);
+              }
+            };
+            ws.onerror = () => {
+              clearTimeout(timeoutId);
+              setOnlineStatus('내 서버 WebSocket 연결에 실패했습니다.', true);
+            };
+            ws.onclose = () => {
+              clearTimeout(timeoutId);
+              if (net.mode === 'online') {
+                showToast('서버와의 연결이 종료되었습니다.', 'error');
+                returnToLobby();
+              }
+            };
+          } catch (_) {
+            setOnlineStatus('WebSocket 주소 형식이 올바르지 않습니다.', true);
+          }
+          return;
+        }
+
+        setOnlineStatus(`중계 서버 접속 중... (방 #${code})`);
 
         try {
-          const peer = new Peer(PEER_OPTIONS);
-          net.peer = peer;
+          const client = mqtt.connect(MQTT_BROKER_URL, {
+            clientId,
+            clean: true,
+            connectTimeout: 10000,
+            reconnectPeriod: 1500,
+            keepalive: 25,
+            will: {
+              topic: roomTopic(code, 'toHost'),
+              payload: JSON.stringify({ from: clientId, type: 'LEAVE' }),
+              qos: 0,
+              retain: false
+            }
+          });
+
+          net.client = client;
           net.mode = 'online';
           net.role = 'guest';
           net.roomCode = code;
+          net.myPeerId = clientId;
 
           let synced = false;
           const timeoutId = setTimeout(() => {
             if (!synced) {
-              setOnlineStatus(`방 #${code} 연결 시간 초과 — 폰 방장이 화면을 켜둔 상태에서 [🔄 연결 유지]를 누른 뒤 다시 시도해주세요.`, true);
-              cleanupNetwork();
+              setOnlineStatus(`방 #${code}에서 응답이 없습니다. 방 코드가 맞는지, 방장이 대기실에 있는지 확인해주세요.`, true);
+              cleanupNetwork(false);
             }
-          }, 18000);
+          }, 12000);
 
-          peer.on('open', id => {
-            net.myPeerId = id;
-            setOnlineStatus(`방 #${code}에 P2P/릴레이 연결 중... (최대 10초 소요)`);
-            const conn = peer.connect(PEER_PREFIX + code, { reliable: true, serialization: 'json' });
-            net.hostConn = conn;
+          const sendJoin = () => {
+            if (synced || !client.connected) return;
+            mqttPublish(roomTopic(code, 'toHost'), {
+              from: clientId,
+              type: 'JOIN',
+              name: profile.nickname,
+              avatar: profile.avatar
+            });
+          };
 
-            const sendJoin = () => {
-              if (synced || !conn.open) return;
-              try {
-                conn.send({ type: 'JOIN', name: profile.nickname, avatar: profile.avatar });
-              } catch (_) {}
-            };
-
-            conn.on('open', () => {
-              setOnlineStatus(`방 #${code} 연결 완료! 입장 동기화 중...`);
+          client.on('connect', () => {
+            updateConnectionPill('connected');
+            setOnlineStatus(`방 #${code} 입장 요청 전송 중...`);
+            client.subscribe([
+              roomTopic(code, 'broadcast'),
+              roomTopic(code, `to/${clientId}`)
+            ], err => {
+              if (err) {
+                clearTimeout(timeoutId);
+                setOnlineStatus('채널 연결에 실패했습니다. 다시 시도해주세요.', true);
+                return;
+              }
               sendJoin();
               if (net.joinRetryTimer) clearInterval(net.joinRetryTimer);
               net.joinRetryTimer = setInterval(() => {
@@ -1579,40 +1886,33 @@
                 } else {
                   sendJoin();
                 }
-              }, 1800);
-            });
-
-            conn.on('data', msg => {
-              if (msg && msg.type === 'ROOM_SYNC') {
-                synced = true;
-                clearTimeout(timeoutId);
-                if (net.joinRetryTimer) { clearInterval(net.joinRetryTimer); net.joinRetryTimer = null; }
-                updateConnectionPill('connected');
-              }
-              handleGuestMessage(msg);
-            });
-
-            conn.on('close', () => {
-              clearTimeout(timeoutId);
-              if (net.joinRetryTimer) { clearInterval(net.joinRetryTimer); net.joinRetryTimer = null; }
-              if (net.mode === 'online') {
-                showToast('방장과의 연결이 종료되었습니다.', 'error');
-                returnToLobby();
-              }
-            });
-
-            conn.on('error', () => {
-              clearTimeout(timeoutId);
-              setOnlineStatus('방에 연결하지 못했습니다. 방 코드를 확인하고 다시 시도해주세요.', true);
+              }, 1600);
             });
           });
 
-          peer.on('error', err => {
-            clearTimeout(timeoutId);
-            if (err && err.type === 'peer-unavailable') {
-              setOnlineStatus(`방 #${code}을(를) 찾을 수 없습니다. 방장이 대기실 화면을 유지 중인지 확인해주세요.`, true);
-            } else {
-              setOnlineStatus(`연결 실패: ${err && err.message ? err.message : '네트워크 상태를 확인해주세요.'}`, true);
+          client.on('message', (topic, rawPayload) => {
+            let msg;
+            try { msg = JSON.parse(rawPayload.toString()); } catch (_) { return; }
+            if (!msg || typeof msg !== 'object') return;
+            if (msg.type === 'ROOM_SYNC') {
+              synced = true;
+              clearTimeout(timeoutId);
+              if (net.joinRetryTimer) { clearInterval(net.joinRetryTimer); net.joinRetryTimer = null; }
+            } else if (msg.type === 'REJECT') {
+              clearTimeout(timeoutId);
+              if (net.joinRetryTimer) { clearInterval(net.joinRetryTimer); net.joinRetryTimer = null; }
+            }
+            handleGuestMessage(msg);
+          });
+
+          client.on('reconnect', () => {
+            updateConnectionPill('reconnecting');
+          });
+
+          client.on('error', err => {
+            if (!synced) {
+              clearTimeout(timeoutId);
+              setOnlineStatus(`중계 서버 연결 실패: ${err && err.message ? err.message : '네트워크를 확인해주세요.'}`, true);
             }
           });
         } catch (_) {
@@ -1624,7 +1924,12 @@
         if (!msg || typeof msg !== 'object') return;
         if (msg.type === 'REJECT') {
           setOnlineStatus(msg.reason || '입장이 거절되었습니다.', true);
-          cleanupNetwork();
+          cleanupNetwork(false);
+          return;
+        }
+        if (msg.type === 'HOST_CLOSED') {
+          showToast('방장이 대기실을 종료했습니다.', 'warn');
+          returnToLobby();
           return;
         }
         if (msg.type === 'ROOM_SYNC') {
@@ -1657,17 +1962,13 @@
           room: net.room,
           chatHistory: net.chatMessages.slice(-40)
         };
-        for (const conn of net.conns.values()) {
-          try { conn.send(payload); } catch (_) {}
-        }
+        netSendBroadcast(payload);
         renderWaitingRoom();
       }
 
       function broadcastChatMessage(entry) {
         if (net.role === 'host') {
-          for (const conn of net.conns.values()) {
-            try { conn.send({ type: 'CHAT', entry }); } catch (_) {}
-          }
+          netSendBroadcast({ type: 'CHAT', entry });
         }
       }
 
@@ -1679,8 +1980,8 @@
           addChatMessage(entry);
           broadcastChatMessage(entry);
           sfx.chat();
-        } else if (net.role === 'guest' && net.hostConn) {
-          try { net.hostConn.send({ type: 'CHAT', text: clean }); } catch (_) {}
+        } else if (net.role === 'guest') {
+          netSendToHost({ type: 'CHAT', text: clean });
         }
       }
 
@@ -1719,9 +2020,9 @@
       function broadcastGameState(toastMsg = '', toastType = 'info', soundEvent = null) {
         if (net.mode !== 'online' || net.role !== 'host') return;
 
-        for (const [peerId, conn] of net.conns.entries()) {
-          const myIdx = state.players.findIndex(p => p.peerId === peerId);
-          if (myIdx === -1) continue;
+        for (const pTarget of state.players) {
+          if (!pTarget.peerId || pTarget.peerId === 'HOST' || pTarget.isAI) continue;
+          const myIdx = pTarget.id;
 
           const sanitizedPlayers = state.players.map((p, idx) => ({
             id: p.id,
@@ -1763,9 +2064,13 @@
             }
           };
 
-          try {
-            conn.send({ type: 'STATE_SYNC', viewState, toastMsg, toastType, soundEvent });
-          } catch (_) {}
+          netSendToGuest(pTarget.peerId, {
+            type: 'STATE_SYNC',
+            viewState,
+            toastMsg,
+            toastType,
+            soundEvent
+          });
         }
       }
 
@@ -1792,7 +2097,6 @@
         state.roundHistory = vs.roundHistory || [];
         state.lastResultModal = vs.lastResultModal;
 
-        // Prune selected cards that are no longer in hand
         const myHandIds = new Set((state.players[state.viewingPlayerIdx]?.hand || []).map(c => c.id));
         for (const id of [...state.selectedCardIds]) {
           if (!myHandIds.has(id)) state.selectedCardIds.delete(id);
@@ -1826,12 +2130,8 @@
       }
 
       function sendGuestAction(actionPayload) {
-        if (net.mode === 'online' && net.role === 'guest' && net.hostConn) {
-          try {
-            net.hostConn.send({ type: 'ACTION', ...actionPayload });
-          } catch (_) {
-            showToast('서버에 동작을 전달하지 못했습니다.', 'error');
-          }
+        if (net.mode === 'online' && net.role === 'guest') {
+          netSendToHost({ type: 'ACTION', ...actionPayload });
         }
       }
 
@@ -1865,7 +2165,6 @@
           return;
         }
 
-        // Turn-gated actions
         if (state.currentPlayerIdx !== playerIdx) return;
 
         if (msg.action === 'draw') {
@@ -1981,10 +2280,9 @@
             btn.addEventListener('click', () => {
               const idx = Number(btn.dataset.kickIdx);
               const removed = net.room.seats.splice(idx, 1)[0];
-              if (removed && removed.peerId && net.conns.has(removed.peerId)) {
-                const c = net.conns.get(removed.peerId);
-                try { c.send({ type: 'KICKED' }); c.close(); } catch (_) {}
-                net.conns.delete(removed.peerId);
+              if (removed && removed.peerId && net.guestIds.has(removed.peerId)) {
+                netSendToGuest(removed.peerId, { type: 'KICKED' });
+                net.guestIds.delete(removed.peerId);
               }
               if (removed) {
                 addChatMessage({ system: true, text: `${removed.name}님이 대기실에서 제외되었습니다.` });
@@ -2074,6 +2372,17 @@
 
         const nickInput = document.getElementById('input-nickname');
         if (!nickInput.value) nickInput.value = profile.nickname;
+
+        const isCustomWs = net.transport === 'custom_ws';
+        document.getElementById('btn-transport-custom').className = `px-2.5 py-1 rounded-lg text-[11px] font-bold border transition ${
+          isCustomWs ? 'bg-amber-400 text-slate-950 border-amber-300' : 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/10'
+        }`;
+        document.getElementById('btn-transport-public').className = `px-2.5 py-1 rounded-lg text-[11px] font-bold border transition ${
+          !isCustomWs ? 'bg-emerald-400 text-slate-950 border-emerald-300' : 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/10'
+        }`;
+        document.getElementById('custom-ws-url-row').classList.toggle('hidden', !isCustomWs);
+        const wsInp = document.getElementById('input-ws-url');
+        if (wsInp && !wsInp.value && net.customWsUrl) wsInp.value = net.customWsUrl;
 
         // Offline controls
         document.querySelectorAll('.count-btn').forEach(btn => {
@@ -3233,6 +3542,27 @@
         renderLobby();
       });
 
+      document.getElementById('btn-transport-custom').addEventListener('click', () => {
+        net.transport = 'custom_ws';
+        try { localStorage.setItem('hula5_transport', 'custom_ws'); } catch (_) {}
+        setOnlineStatus('');
+        sfx.select();
+        renderLobby();
+      });
+
+      document.getElementById('btn-transport-public').addEventListener('click', () => {
+        net.transport = 'public_mqtt';
+        try { localStorage.setItem('hula5_transport', 'public_mqtt'); } catch (_) {}
+        setOnlineStatus('');
+        sfx.select();
+        renderLobby();
+      });
+
+      document.getElementById('input-ws-url').addEventListener('input', e => {
+        net.customWsUrl = e.target.value.trim();
+        try { localStorage.setItem('hula5_ws_url', net.customWsUrl); } catch (_) {}
+      });
+
       document.getElementById('input-nickname').addEventListener('input', e => {
         profile.nickname = e.target.value.trim() || profile.nickname;
         saveProfile(profile.nickname, profile.avatar);
@@ -3308,9 +3638,9 @@
       });
 
       document.getElementById('btn-toggle-ready').addEventListener('click', () => {
-        if (net.role === 'guest' && net.hostConn) {
+        if (net.role === 'guest') {
           sfx.select();
-          try { net.hostConn.send({ type: 'TOGGLE_READY' }); } catch (_) {}
+          netSendToHost({ type: 'TOGGLE_READY' });
         }
       });
 
