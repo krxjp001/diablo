@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>DIABLO II ONLINE — 도트 에디션</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      width: 100%; height: 100dvh; overflow: hidden;
+      background: #070606; color: #e6d5b8;
+      font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', serif;
+    }
+    canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; touch-action: none; }
+    .hidden { display: none !important; }
+
+    /* 고딕 패널 공통 */
+    .d2-panel {
+      background: linear-gradient(180deg, #1a1412 0%, #0d0a09 100%);
+      border: 2px solid #5c4632;
+      box-shadow: inset 0 0 18px rgba(0,0,0,0.9), 0 0 24px rgba(0,0,0,0.95);
+    }
+    .d2-btn {
+      background: linear-gradient(180deg, #3b2218 0%, #1d100c 100%);
+      border: 1px solid #8a6a47; color: #f3dfb8;
+      padding: 6px 12px; font-weight: 700; font-size: 12px; cursor: pointer;
+      text-shadow: 1px 1px 2px #000;
+    }
+    .d2-btn:hover { filter: brightness(1.2); border-color: #d4af37; }
+    .d2-btn:active { transform: scale(0.97); }
+    .d2-title {
+      color: #c9a25e; text-shadow: 0 2px 6px #000, 0 0 12px rgba(180,30,20,0.6);
+      letter-spacing: 2px; font-weight: 900;
+    }
+
+    /* 캐릭터 선택 화면 */
+    #charSelectScreen {
+      position: fixed; inset: 0; z-index: 100;
+      background: radial-gradient(circle at 50% 25%, #2b0f0c 0%, #090606 72%);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 16px; gap: 14px; overflow-y: auto;
+    }
+    .class-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+      gap: 8px; width: 100%; max-width: 780px;
+    }
+    .class-card {
+      background: rgba(18,12,10,0.9); border: 2px solid #4a3726;
+      padding: 10px 6px; text-align: center; cursor: pointer; transition: 0.15s;
+    }
+    .class-card:hover { border-color: #a8824c; background: rgba(40,22,16,0.95); }
+    .class-card.selected {
+      border-color: #e5b85c; background: rgba(70,22,16,0.95);
+      box-shadow: 0 0 16px rgba(229,184,92,0.45);
+    }
+    .class-card canvas { width: 48px; height: 48px; margin: 0 auto 6px; }
+    .class-name { font-size: 13px; font-weight: 900; color: #f5d89c; }
+    .class-skill { font-size: 10px; color: #b89f82; margin-top: 3px; }
+
+    /* 상단 HUD */
+    #topBar {
+      position: fixed; top: 8px; left: 8px; right: 8px; z-index: 20;
+      display: flex; justify-content: space-between; align-items: flex-start;
+      pointer-events: none; gap: 8px;
+    }
+    #zoneInfo {
+      pointer-events: auto; padding: 6px 10px; font-size: 12px;
+      background: rgba(10,8,7,0.82); border: 1px solid #5c4632;
+    }
+    #zoneName { color: #e5b85c; font-weight: 900; font-size: 13px; }
+    #netStatus { font-size: 10px; color: #9ca3af; margin-top: 2px; }
+    #targetBarWrap {
+      display: none; min-width: 220px; max-width: 340px; text-align: center;
+      background: rgba(10,7,7,0.88); border: 1px solid #7f1d1d; padding: 4px 10px;
+    }
+    #targetName { font-size: 12px; font-weight: 900; color: #f87171; text-shadow: 1px 1px 2px #000; }
+    #targetHpBg { width: 100%; height: 8px; background: #260a0a; border: 1px solid #5c4632; margin-top: 3px; }
+    #targetHpFill { height: 100%; background: linear-gradient(90deg, #991b1b, #ef4444); width: 100%; }
+    #topBtns { pointer-events: auto; display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+
+    /* 채팅창 */
+    #chatWrap {
+      position: fixed; left: 10px; bottom: 112px; width: 290px; max-width: 65vw;
+      z-index: 25; pointer-events: none;
+    }
+    #chatLog {
+      max-height: 110px; overflow-y: auto; font-size: 11px; line-height: 1.45;
+      text-shadow: 1px 1px 2px #000; margin-bottom: 4px;
+    }
+    #chatInput {
+      pointer-events: auto; width: 100%; padding: 5px 8px; font-size: 12px;
+      background: rgba(10,8,7,0.92); border: 1px solid #8a6a47; color: #fff; outline: none;
+    }
+
+    /* 하단 디아블로 2 오리지널 HUD */
+    #d2Hud {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+      height: 92px; display: flex; align-items: flex-end; justify-content: center;
+      pointer-events: none; padding: 0 6px 6px;
+    }
+    .orb-wrap {
+      pointer-events: auto; position: relative; width: 82px; height: 82px; flex-shrink: 0;
+      border-radius: 50%; border: 3px solid #6b533b; background: #140c0c;
+      overflow: hidden; box-shadow: inset 0 0 16px #000, 0 0 12px #000;
+    }
+    .orb-fill {
+      position: absolute; left: 0; right: 0; bottom: 0; transition: height 0.12s;
+    }
+    #hpOrbFill { background: radial-gradient(circle at 35% 30%, #ff4d4d 0%, #b91c1c 55%, #450a0a 100%); height: 100%; }
+    #mpOrbFill { background: radial-gradient(circle at 35% 30%, #60a5fa 0%, #1d4ed8 55%, #0f172a 100%); height: 100%; }
+    .orb-gloss {
+      position: absolute; top: 8px; left: 14px; width: 22px; height: 14px;
+      background: rgba(255,255,255,0.22); border-radius: 50%; transform: rotate(-25deg);
+    }
+    .orb-text {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; font-size: 11px; font-weight: 900;
+      color: #fff; text-shadow: 0 1px 3px #000;
+    }
+
+    #hudCenter {
+      pointer-events: auto; flex: 1; max-width: 520px; height: 74px; margin: 0 6px;
+      display: flex; flex-direction: column; justify-content: space-between; padding: 5px 8px;
+    }
+    #expBarBg { width: 100%; height: 6px; background: #14100d; border: 1px solid #4a3726; position: relative; }
+    #expBarFill { height: 100%; background: linear-gradient(90deg, #b45309, #facc15); width: 0%; }
+    .hud-row { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+    .skill-slot {
+      width: 44px; height: 44px; background: #1a110e; border: 2px solid #8a6a47;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      cursor: pointer; position: relative; flex-shrink: 0;
+    }
+    .skill-slot:hover { border-color: #facc15; }
+    .skill-slot span { font-size: 18px; line-height: 1; }
+    .skill-slot small { font-size: 9px; color: #d4af37; margin-top: 2px; }
+    .belt-group { display: flex; gap: 4px; }
+    .belt-slot {
+      width: 36px; height: 38px; background: #140f0c; border: 1px solid #6b533b;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      cursor: pointer; position: relative; font-size: 16px;
+    }
+    .belt-slot .key { position: absolute; top: 1px; left: 3px; font-size: 9px; color: #a89378; }
+    .belt-slot .cnt { position: absolute; bottom: 1px; right: 3px; font-size: 9px; color: #fff; font-weight: 900; }
+
+    /* 모달 (인벤토리 / 웨이포인트) */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,0.72);
+      display: flex; align-items: center; justify-content: center; padding: 12px;
+    }
+    .modal-box { width: 100%; max-width: 460px; max-height: 85dvh; overflow-y: auto; padding: 14px; }
+    .modal-header {
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid #5c4632; padding-bottom: 8px; margin-bottom: 10px;
+    }
+    .equip-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 10px; }
+    .equip-box {
+      background: #120d0b; border: 1px solid #5c4632; padding: 6px 8px; font-size: 11px;
+    }
+    .inv-list { display: flex; flex-direction: column; gap: 5px; max-height: 230px; overflow-y: auto; }
+    .inv-item {
+      display: flex; justify-content: space-between; align-items: center;
+      background: #140f0c; border: 1px solid #3f3023; padding: 6px 8px; cursor: pointer; font-size: 12px;
+    }
+    .inv-item:hover { border-color: #d4af37; background: #221712; }
+    .wp-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+    /* 등급 색상 (디아블로 2 원작) */
+    .r-normal { color: #f3f4f6; }
+    .r-magic  { color: #60a5fa; }
+    .r-rare   { color: #facc15; }
+    .r-unique { color: #d4af37; }
+    .r-rune   { color: #fb923c; }
+
+    /* 모바일 조작 버튼 */
+    #mobileControls {
+      position: fixed; right: 12px; bottom: 106px; z-index: 28;
+      display: none; flex-direction: column; gap: 6px;
+    }
+    @media (pointer: coarse) {
+      #mobileControls { display: flex; }
+      .orb-wrap { width: 64px; height: 64px; }
+      .belt-slot { width: 30px; height: 34px; font-size: 14px; }
+      .skill-slot { width: 38px; height: 38px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 캐릭터 선택 화면 -->
+  <div id="charSelectScreen">
+    <div style="text-align:center;">
+      <h1 class="d2-title" style="font-size:28px;">DIABLO II ONLINE</h1>
+      <p style="font-size:12px; color:#a89378; margin-top:4px;">도트 액션 MMORPG · 액트 1 ~ 액트 5 · 실시간 다중접속</p>
+    </div>
+
+    <div class="class-grid" id="classGrid"></div>
+
+    <div class="d2-panel" style="padding:12px 16px; width:100%; max-width:420px; display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; gap:8px;">
+        <input id="charNameInput" type="text" maxlength="10" placeholder="캐릭터 이름 입력 (예: 네팔렘)"
+          style="flex:1; padding:8px 10px; background:#090706; border:1px solid #6b533b; color:#f5d89c; font-size:13px; outline:none;" />
+        <button id="enterWorldBtn" class="d2-btn" style="padding:8px 18px; font-size:13px;">입장하기</button>
+      </div>
+      <div style="font-size:11px; color:#9ca3af; text-align:center;">
+        PC: 클릭/WASD 이동 · 좌클릭 공격 · 우클릭/T 텔레포트 · 1~4 포션 · I 인벤토리 · W 웨이포인트
+      </div>
+    </div>
+  </div>
+
+  <!-- 메인 게임 캔버스 -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- 상단 HUD -->
+  <div id="topBar" class="hidden">
+    <div id="zoneInfo">
+      <div id="zoneName">Act 1 — 로그 캠프 (마을)</div>
+      <div id="netStatus">서버 연결 중...</div>
+    </div>
+
+    <div id="targetBarWrap">
+      <div id="targetName">안다리엘</div>
+      <div id="targetHpBg"><div id="targetHpFill"></div></div>
+    </div>
+
+    <div id="topBtns">
+      <button class="d2-btn" onclick="openModal('wpModal')">🌀 웨이포인트(W)</button>
+      <button class="d2-btn" onclick="openModal('invModal')">🎒 장비/가방(I)</button>
+      <button class="d2-btn" onclick="castTownPortal()">🚪 포탈(P)</button>
+    </div>
+  </div>
+
+  <!-- 채팅 -->
+  <div id="chatWrap" class="hidden">
+    <div id="chatLog"></div>
+    <input id="chatInput" class="hidden" type="text" maxlength="70" placeholder="채팅 입력 후 Enter..." />
+  </div>
+
+  <!-- 모바일 퀵 버튼 -->
+  <div id="mobileControls" class="hidden">
+    <button class="d2-btn" style="padding:10px;" onclick="castPrimarySkill()">⚔️ 스킬</button>
+    <button class="d2-btn" style="padding:10px;" onclick="castTeleportMobile()">⚡ 텔포</button>
+    <button class="d2-btn" style="padding:10px;" onclick="pickupNearestLoot()">💎 줍기</button>
+  </div>
+
+  <!-- 하단 디아블로 2 오리지널 HUD -->
+  <div id="d2Hud" class="hidden">
+    <!-- 체력 구슬 -->
+    <div class="orb-wrap" title="체력">
+      <div id="hpOrbFill" class="orb-fill"></div>
+      <div class="orb-gloss"></div>
+      <div class="orb-text"><span>HP</span><span id="hpText">100/100</span></div>
+    </div>
+
+    <!-- 중앙 컨트롤 바 -->
+    <div id="hudCenter" class="d2-panel">
+      <div class="hud-row">
+        <div class="skill-slot" onclick="castPrimarySkill()" title="주력 스킬 (Space / 좌클릭)">
+          <span id="leftSkillIcon">🔥</span>
+          <small id="leftSkillName">스킬</small>
+        </div>
+
+        <div class="belt-group">
+          <div class="belt-slot" onclick="usePotion('hp')"><span class="key">1</span>🧪<span class="cnt" id="hpPotCnt">5</span></div>
+          <div class="belt-slot" onclick="usePotion('mp')"><span class="key">2</span>💧<span class="cnt" id="mpPotCnt">5</span></div>
+          <div class="belt-slot" onclick="usePotion('full')"><span class="key">3</span>🟣<span class="cnt" id="fullPotCnt">2</span></div>
+          <div class="belt-slot" onclick="castTownPortal()"><span class="key">4</span>📜<span class="cnt">∞</span></div>
+        </div>
+
+        <div class="skill-slot" onclick="castTeleportMobile()" title="텔레포트 (우클릭 / T)">
+          <span>⚡</span>
+          <small>텔포(T)</small>
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span id="lvlText" style="font-size:11px; font-weight:900; color:#facc15; white-space:nowrap;">Lv.1</span>
+        <div id="expBarBg"><div id="expBarFill"></div></div>
+        <span id="goldText" style="font-size:11px; color:#fbbf24; white-space:nowrap;">0 G</span>
+      </div>
+    </div>
+
+    <!-- 마나 구슬 -->
+    <div class="orb-wrap" title="마나">
+      <div id="mpOrbFill" class="orb-fill"></div>
+      <div class="orb-gloss"></div>
+      <div class="orb-text"><span>MP</span><span id="mpText">50/50</span></div>
+    </div>
+  </div>
+
+  <!-- 인벤토리 / 장비 모달 -->
+  <div id="invModal" class="modal-overlay hidden" onclick="if(event.target===this) closeModal('invModal')">
+    <div class="d2-panel modal-box">
+      <div class="modal-header">
+        <span class="d2-title" style="font-size:15px;">⚔️ 장착 장비 &amp; 인벤토리</span>
+        <button class="d2-btn" onclick="closeModal('invModal')">닫기</button>
+      </div>
+      <div id="statSummary" style="font-size:11px; color:#d6c3a5; margin-bottom:8px;"></div>
+      <div class="equip-grid" id="equipGrid"></div>
+      <div style="font-size:11px; color:#a89378; margin-bottom:4px;">가방 (클릭하여 장착 — 외형 즉시 반영)</div>
+      <div class="inv-list" id="invList"></div>
+    </div>
+  </div>
+
+  <!-- 웨이포인트 모달 (Act 1 ~ Act 5) -->
+  <div id="wpModal" class="modal-overlay hidden" onclick="if(event.target===this) closeModal('wpModal')">
+    <div class="d2-panel modal-box">
+      <div class="modal-header">
+        <span class="d2-title" style="font-size:15px;">🌀 웨이포인트 (Act 1 ~ Act 5)</span>
+        <button class="d2-btn" onclick="closeModal('wpModal')">닫기</button>
+      </div>
+      <div class="wp-list" id="wpList"></div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================
+    // 1. 서버 연결 설정 & 게임 마스터 데이터 (Act 1~5, 7개 클래스)
+    // =========================================================
+    const WS_URL = 'wss://kiablo.duckdns.org';
+    const MAP_W = 1600;
+    const MAP_H = 1200;
+
+    const CLASSES = {
+      sorceress: { name: '원소술사', icon: '❄️', skill: '프로즌 오브', color: '#38bdf8', robe: '#1d4ed8', skin: '#f5d0a9', hair: '#1e1b4b', startWpn: 'sorc_staff', baseHp: 90, baseMp: 100, dmg: 16, canTele: true },
+      paladin:   { name: '성기사',   icon: '🔨', skill: '블레시드 해머', color: '#facc15', robe: '#b45309', skin: '#d9a066', hair: '#1c1917', startWpn: 'short_sword', baseHp: 130, baseMp: 70, dmg: 18, canTele: false },
+      barbarian: { name: '야만용사', icon: '🪓', skill: '휠윈드',       color: '#f87171', robe: '#7f1d1d', skin: '#e5b887', hair: '#451a03', startWpn: 'battle_axe', baseHp: 160, baseMp: 50, dmg: 22, canTele: false },
+      amazon:    { name: '아마존',   icon: '🏹', skill: '멀티샷',       color: '#4ade80', robe: '#166534', skin: '#fde68a', hair: '#facc15', startWpn: 'hunter_bow', baseHp: 115, baseMp: 65, dmg: 17, canTele: false },
+      necromancer:{ name: '강령술사', icon: '💀', skill: '본 스피어',    color: '#cbd5e1', robe: '#334155', skin: '#e2e8f0', hair: '#f8fafc', startWpn: 'bone_wand', baseHp: 95, baseMp: 95, dmg: 17, canTele: false },
+      assassin:  { name: '암살자',   icon: '⚡', skill: '라이트닝 트랩', color: '#c084fc', robe: '#4c1d95', skin: '#f3d1b0', hair: '#0f172a', startWpn: 'katar', baseHp: 110, baseMp: 75, dmg: 19, canTele: false },
+      druid:     { name: '드루이드', icon: '🌪️', skill: '토네이도',     color: '#a3e635', robe: '#3f6212', skin: '#e6be9a', hair: '#9a3412', startWpn: 'oak_club', baseHp: 125, baseMp: 80, dmg: 17, canTele: false }
+    };
+
+    const ZONES = {
+      act1_town:  { act: 1, name: 'Act 1 — 로그 캠프 (마을)',       safe: true,  bg: '#232b1e', tile: '#1b2217', accent: '#36442d', next: 'act1_field' },
+      act1_field: { act: 1, name: 'Act 1 — 카타콤 (보스: 안다리엘)', safe: false, bg: '#1e1918', tile: '#161211', accent: '#3d1e1e', mob: '폴른', boss: '안다리엘', mobHp: 45, bossHp: 450, mobColor: '#dc2626', bossColor: '#16a34a', lv: 1 },
+      act2_town:  { act: 2, name: 'Act 2 — 루트 골레인 (마을)',     safe: true,  bg: '#524026', tile: '#42321d', accent: '#785d36', next: 'act2_field' },
+      act2_field: { act: 2, name: 'Act 2 — 탈 라샤의 무덤 (듀리엘)', safe: false, bg: '#3b2d1c', tile: '#2b2013', accent: '#5c4324', mob: '미라', boss: '듀리엘', mobHp: 95, bossHp: 900, mobColor: '#d97706', bossColor: '#0284c7', lv: 5 },
+      act3_town:  { act: 3, name: 'Act 3 — 쿠라스트 부두 (마을)',   safe: true,  bg: '#1c3329', tile: '#14261f', accent: '#254a3a', next: 'act3_field' },
+      act3_field: { act: 3, name: 'Act 3 — 증오의 억류지 (메피스토)', safe: false, bg: '#181421', tile: '#110d17', accent: '#3b1d4a', mob: '우상족', boss: '메피스토', mobHp: 160, bossHp: 1600, mobColor: '#9333ea', bossColor: '#38bdf8', lv: 10 },
+      act4_town:  { act: 4, name: 'Act 4 — 혼돈의 요새 (마을)',     safe: true,  bg: '#241e21', tile: '#1a1518', accent: '#3d3036', next: 'act4_field' },
+      act4_field: { act: 4, name: 'Act 4 — 카오스 생츄어리 (디아블로)', safe: false, bg: '#260d0b', tile: '#1a0807', accent: '#59140e', mob: '베놈 로드', boss: '디아블로', mobHp: 260, bossHp: 2800, mobColor: '#ea580c', bossColor: '#ef4444', lv: 15 },
+      act5_town:  { act: 5, name: 'Act 5 — 하로가스 (마을)',        safe: true,  bg: '#2b333d', tile: '#212830', accent: '#475569', next: 'act5_field' },
+      act5_field: { act: 5, name: 'Act 5 — 세계석 성채 (보스: 바알)', safe: false, bg: '#161c26', tile: '#0f141c', accent: '#312e81', mob: '파멸의 기사', boss: '바알', mobHp: 400, bossHp: 4500, mobColor: '#6366f1', bossColor: '#c084fc', lv: 20 }
+    };
+
+    const ITEM_DB = {
+      short_sword:  { name: '숏 소드',        slot: 'weapon', rarity: 'normal', dmg: 6,  color: '#cbd5e1', shape: 'sword' },
+      sorc_staff:   { name: '오크 지팡이',    slot: 'weapon', rarity: 'normal', dmg: 7,  color: '#92400e', shape: 'staff' },
+      battle_axe:   { name: '배틀 액스',      slot: 'weapon', rarity: 'normal', dmg: 9,  color: '#94a3b8', shape: 'axe' },
+      hunter_bow:   { name: '헌터 보우',      slot: 'weapon', rarity: 'normal', dmg: 7,  color: '#a16207', shape: 'bow' },
+      bone_wand:    { name: '본 완드',        slot: 'weapon', rarity: 'normal', dmg: 7,  color: '#f1f5f9', shape: 'staff' },
+      katar:        { name: '카타르',         slot: 'weapon', rarity: 'normal', dmg: 8,  color: '#94a3b8', shape: 'sword' },
+      oak_club:     { name: '오크 클럽',      slot: 'weapon', rarity: 'normal', dmg: 8,  color: '#78350f', shape: 'axe' },
+      crystal_sword:{ name: '스피리트 크리스탈 소드', slot: 'weapon', rarity: 'magic', dmg: 18, color: '#38bdf8', shape: 'sword' },
+      hoto_flail:   { name: '오크의 심장 (룬워드)', slot: 'weapon', rarity: 'unique', dmg: 34, color: '#facc15', shape: 'staff' },
+      grief_blade:  { name: '슬픔 페이즈 블레이드', slot: 'weapon', rarity: 'unique', dmg: 46, color: '#67e8f9', shape: 'sword' },
+      windforce:    { name: '윈드포스 하이드라 보우', slot: 'weapon', rarity: 'unique', dmg: 42, color: '#f59e0b', shape: 'bow' },
+      monarch:      { name: '모너크 스피리트 방패', slot: 'shield', rarity: 'magic', def: 15, color: '#60a5fa' },
+      stormshield:  { name: '스톰실드 (유니크)', slot: 'shield', rarity: 'unique', def: 30, color: '#d4af37' },
+      shako:        { name: '할리퀸 관모 (샤코)', slot: 'helm', rarity: 'unique', def: 20, hp: 50, color: '#22c55e' },
+      andariel_helm:{ name: '안다리엘의 두개골', slot: 'helm', rarity: 'unique', def: 25, dmg: 10, color: '#e2e8f0' },
+      enigma:       { name: '수수께끼 메이지 플레이트 (텔포)', slot: 'armor', rarity: 'unique', def: 45, hp: 80, tele: true, color: '#a855f7' },
+      tal_armor:    { name: '탈 라샤의 갑옷', slot: 'armor', rarity: 'rare', def: 30, hp: 40, color: '#c084fc' },
+      jah_rune:     { name: '자(Jah) 룬', slot: 'rune', rarity: 'rune', color: '#fb923c' },
+      ber_rune:     { name: '베르(Ber) 룬', slot: 'rune', rarity: 'rune', color: '#fb923c' }
+    };
+
+    const DROP_POOL = ['crystal_sword', 'monarch', 'shako', 'tal_armor', 'hoto_flail', 'grief_blade', 'windforce', 'stormshield', 'andariel_helm', 'jah_rune', 'ber_rune'];
+
+    // =========================================================
+    // 2. 파츠 분리 도트 렌더링 엔진 (Paper-Doll)
+    // =========================================================
+    function drawPixelCharacter(c, x, y, clsId, equip, dir, walkFrame, swingTimer, isMe, name, lv) {
+      const cls = CLASSES[clsId] || CLASSES.sorceress;
+      const facingLeft = Math.cos(dir) < 0;
+      const bob = walkFrame ? -2 : 0;
+
+      c.save();
+      c.translate(Math.round(x), Math.round(y));
+
+      // 1) 바닥 그림자 + 내 캐릭터 황금 링
+      c.fillStyle = 'rgba(0,0,0,0.5)';
+      c.beginPath(); c.ellipse(0, 14, 14, 6, 0, 0, Math.PI * 2); c.fill();
+      if (isMe) {
+        c.strokeStyle = 'rgba(250, 204, 21, 0.55)';
+        c.lineWidth = 1.5;
+        c.beginPath(); c.ellipse(0, 14, 17, 7.5, 0, 0, Math.PI * 2); c.stroke();
+      }
+
+      // 2) 본체 + 갑옷 + 투구 (좌우 반전 적용)
+      c.save();
+      if (facingLeft) c.scale(-1, 1);
+
+      const armorColor = (equip?.armor && ITEM_DB[equip.armor]) ? ITEM_DB[equip.armor].color : cls.robe;
+      const helmItem = (equip?.helm && ITEM_DB[equip.helm]) ? ITEM_DB[equip.helm] : null;
+      const shieldItem = (equip?.shield && ITEM_DB[equip.shield]) ? ITEM_DB[equip.shield] : null;
+      const wpnItem = (equip?.weapon && ITEM_DB[equip.weapon]) ? ITEM_DB[equip.weapon] : ITEM_DB.short_sword;
+
+      // 다리 (걷기 애니메이션)
+      c.fillStyle = '#18181b';
+      const legOff = walkFrame ? 2 : 0;
+      c.fillRect(-6, 6 + legOff, 5, 8);
+      c.fillRect(1, 6 - legOff, 5, 8);
+      c.fillStyle = '#44403c';
+      c.fillRect(-5, 7 + legOff, 3, 6);
+      c.fillRect(2, 7 - legOff, 3, 6);
+
+      // 몸통 (갑옷 레이어)
+      c.fillStyle = '#111';
+      c.fillRect(-9, -8 + bob, 18, 16);
+      c.fillStyle = armorColor;
+      c.fillRect(-7, -6 + bob, 14, 12);
+      // 갑옷 벨트
+      c.fillStyle = '#d97706';
+      c.fillRect(-7, 2 + bob, 14, 2);
+
+      // 머리 (피부 + 머리카락)
+      c.fillStyle = '#111';
+      c.fillRect(-7, -20 + bob, 14, 13);
+      c.fillStyle = cls.skin;
+      c.fillRect(-5, -18 + bob, 10, 10);
+      // 눈
+      c.fillStyle = '#0f172a';
+      c.fillRect(1, -15 + bob, 2, 2);
+      c.fillRect(-3, -15 + bob, 2, 2);
+
+      // 투구 레이어 (미착용 시 머리카락)
+      if (helmItem) {
+        c.fillStyle = '#111';
+        c.fillRect(-8, -23 + bob, 16, 7);
+        c.fillStyle = helmItem.color;
+        c.fillRect(-6, -21 + bob, 12, 5);
+      } else {
+        c.fillStyle = cls.hair;
+        c.fillRect(-6, -20 + bob, 12, 4);
+      }
+
+      // 왼손 방패 레이어
+      if (shieldItem) {
+        c.fillStyle = '#111';
+        c.fillRect(-14, -6 + bob, 8, 12);
+        c.fillStyle = shieldItem.color;
+        c.fillRect(-13, -5 + bob, 6, 10);
+        c.fillStyle = '#fff';
+        c.fillRect(-11, -2 + bob, 2, 4);
+      }
+
+      // 오른손 무기 레이어 (공격 시 휘두름)
+      c.save();
+      c.translate(8, -2 + bob);
+      const swingAngle = swingTimer > 0 ? (-1.2 + (10 - swingTimer) * 0.25) : -0.35;
+      c.rotate(swingAngle);
+      c.fillStyle = '#111';
+      if (wpnItem.shape === 'staff') {
+        c.fillRect(-2, -20, 5, 26);
+        c.fillStyle = wpnItem.color;
+        c.fillRect(-1, -19, 3, 24);
+        c.fillStyle = '#fef08a';
+        c.fillRect(-2, -22, 5, 5);
+      } else if (wpnItem.shape === 'axe') {
+        c.fillRect(-1, -16, 4, 20);
+        c.fillStyle = '#78350f';
+        c.fillRect(0, -15, 2, 18);
+        c.fillStyle = wpnItem.color;
+        c.fillRect(1, -16, 8, 9);
+      } else if (wpnItem.shape === 'bow') {
+        c.fillStyle = wpnItem.color;
+        c.fillRect(0, -14, 3, 28);
+        c.fillStyle = '#e2e8f0';
+        c.fillRect(-2, -12, 1, 24);
+      } else { // sword
+        c.fillRect(-2, -18, 5, 20);
+        c.fillStyle = wpnItem.color;
+        c.fillRect(-1, -17, 3, 17);
+        c.fillStyle = '#d4af37';
+        c.fillRect(-4, -1, 9, 3);
+      }
+      c.restore();
+
+      c.restore(); // 반전 해제
+
+      // 3) 이름표
+      c.font = 'bold 11px "Malgun Gothic", sans-serif';
+      c.textAlign = 'center';
+      c.fillStyle = '#000';
+      c.fillText(`${name} (Lv.${lv})`, 1, -28 + bob);
+      c.fillStyle = isMe ? '#fde047' : '#e2e8f0';
+      c.fillText(`${name} (Lv.${lv})`, 0, -29 + bob);
+
+      c.restore();
+    }
+
+    // =========================================================
+    // 3. 게임 상태 & 캐릭터 선택 UI 초기화
+    // =========================================================
+    let selectedClass = 'sorceress';
+    const classGrid = document.getElementById('classGrid');
+
+    Object.entries(CLASSES).forEach(([id, cls]) => {
+      const card = document.createElement('div');
+      card.className = 'class-card' + (id === selectedClass ? ' selected' : '');
+      card.innerHTML = `<canvas width="48" height="48"></canvas><div class="class-name">${cls.icon} ${cls.name}</div><div class="class-skill">${cls.skill}</div>`;
+      const pCtx = card.querySelector('canvas').getContext('2d');
+      pCtx.imageSmoothingEnabled = false;
+      drawPixelCharacter(pCtx, 24, 32, id, { weapon: cls.startWpn }, 0, 0, 0, false, '', '');
+      card.onclick = () => {
+        selectedClass = id;
+        document.querySelectorAll('.class-card').forEach(el => el.classList.remove('selected'));
+        card.classList.add('selected');
+      };
+      classGrid.appendChild(card);
+    });
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+    window.addEventListener('resize', resize);
+    resize();
+
+    let ws = null;
+    let wsConnected = false;
+    let started = false;
+    let currentZone = 'act1_town';
+    let myId = null;
+
+    const me = {
+      name: '영웅', classId: 'sorceress', level: 1, exp: 0, maxExp: 100, gold: 0,
+      x: 800, y: 600, targetX: null, targetY: null, dir: 0, speed: 3.4,
+      hp: 100, maxHp: 100, mp: 100, maxMp: 100,
+      hpPot: 5, mpPot: 5, fullPot: 2, swing: 0, cd: 0,
+      equip: { weapon: 'sorc_staff', armor: 'none', helm: 'none', shield: 'none' },
+      inventory: ['enigma', 'shako', 'crystal_sword'] // 테스트용 기본 아이템 지급
+    };
+
+    const otherPlayers = new Map(); // id -> player
+    let monsters = [];
+    let projectiles = [];
+    let particles = [];
+    let loots = [];
+    let portals = [];
+    let activeTarget = null;
+    let tick = 0;
+
+    // =========================================================
+    // 4. WebSocket 멀티플레이 통신 (kiablo.duckdns.org)
+    // =========================================================
+    function connectServer() {
+      const statusEl = document.getElementById('netStatus');
+      statusEl.textContent = '서버 접속 중...';
+      try {
+        ws = new WebSocket(WS_URL);
+      } catch (e) {
+        statusEl.textContent = '오프라인 모드 (재연결 대기)';
+        return;
+      }
+
+      ws.onopen = () => {
+        wsConnected = true;
+        statusEl.innerHTML = `<span style="color:#4ade80;">● 온라인</span> · 접속자 동기화 중`;
+        const token = localStorage.getItem('hero_clicker_jwt_token') || localStorage.getItem('aigameroom_jwt_token') || null;
+        ws.send(JSON.stringify({ t: 'auth', token, name: me.name, classId: me.classId }));
+      };
+
+      ws.onmessage = (ev) => {
+        let msg;
+        try { msg = JSON.parse(ev.data); } catch { return; }
+
+        if (msg.t === 'zone_init') {
+          myId = msg.me.id;
+          otherPlayers.clear();
+          (msg.others || []).forEach(op => addOrUpdateOther(op));
+          updateOnlineCount();
+        } else if (msg.t === 'join' && msg.p) {
+          addOrUpdateOther(msg.p);
+          updateOnlineCount();
+        } else if (msg.t === 'leave') {
+          otherPlayers.delete(msg.id);
+          updateOnlineCount();
+        } else if (msg.t === 'pos' && Array.isArray(msg.d)) {
+          msg.d.forEach(([id, x, y, d]) => {
+            if (id === myId) return;
+            const op = otherPlayers.get(id);
+            if (op) { op.tx = x; op.ty = y; op.d = d; op.moving = 12; }
+          });
+        } else if (msg.t === 'skill') {
+          const op = otherPlayers.get(msg.id);
+          if (op) {
+            op.swing = 10;
+            if (msg.sk === 'teleport') {
+              spawnEffect(op.x, op.y, '#38bdf8', 14);
+              op.x = op.tx = msg.tx; op.y = op.ty = msg.ty;
+              spawnEffect(op.x, op.y, '#c084fc', 16);
+            } else {
+              spawnSkillProjectile(op.x, op.y, msg.tx, msg.ty, op.c, false);
+            }
+          }
+        } else if (msg.t === 'equip') {
+          const op = otherPlayers.get(msg.id);
+          if (op && msg.eq) op.eq = msg.eq;
+        } else if (msg.t === 'chat') {
+          addChat(`${msg.n}: ${msg.txt}`, '#f5d89c');
+        }
+      };
+
+      ws.onclose = () => {
+        wsConnected = false;
+        statusEl.innerHTML = `<span style="color:#f87171;">● 재연결 중...</span>`;
+        setTimeout(() => { if (started) connectServer(); }, 3000);
+      };
+    }
+
+    function sendNet(obj) {
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+    }
+
+    function addOrUpdateOther(p) {
+      if (p.id === myId) return;
+      otherPlayers.set(p.id, { ...p, tx: p.x, ty: p.y, moving: 0, swing: 0 });
+    }
+
+    function updateOnlineCount() {
+      const el = document.getElementById('netStatus');
+      if (wsConnected) {
+        el.innerHTML = `<span style="color:#4ade80;">● 온라인</span> · 현재 맵 ${otherPlayers.size + 1}명`;
+      }
+    }
+
+    // =========================================================
+    // 5. 존(Act 1~5) 전환, 몬스터 스폰, 포탈, 웨이포인트
+    // =========================================================
+    function enterZone(zoneId, spawnX = 800, spawnY = 600) {
+      currentZone = zoneId;
+      const z = ZONES[zoneId];
+      me.x = spawnX; me.y = spawnY; me.targetX = null; me.targetY = null;
+      monsters = []; projectiles = []; loots = []; portals = []; activeTarget = null;
+      document.getElementById('zoneName').textContent = z.name;
+      document.getElementById('targetBarWrap').style.display = 'none';
+
+      if (z.safe) {
+        me.hp = me.maxHp; me.mp = me.maxMp;
+        addChat(`[시스템] ${z.name}에 도착했습니다. 체력과 마나가 회복되었습니다.`, '#4ade80');
+      } else {
+        // 일반 몬스터 14마리 + 액트 보스 1마리 스폰
+        for (let i = 0; i < 14; i++) {
+          const mx = 200 + Math.random() * (MAP_W - 400);
+          const my = 200 + Math.random() * (MAP_H - 400);
+          if (Math.hypot(mx - me.x, my - me.y) < 180) continue;
+          monsters.push({
+            name: z.mob, isBoss: false, x: mx, y: my, r: 16,
+            hp: z.mobHp, maxHp: z.mobHp, spd: 1.3 + z.act * 0.15,
+            dmg: 4 + z.act * 3, color: z.mobColor, exp: 25 * z.act, hit: 0
+          });
+        }
+        // 액트 보스 스폰
+        monsters.push({
+          name: z.boss, isBoss: true, x: MAP_W - 320, y: 320, r: 28,
+          hp: z.bossHp, maxHp: z.bossHp, spd: 1.5 + z.act * 0.12,
+          dmg: 12 + z.act * 5, color: z.bossColor, exp: 250 * z.act, hit: 0
+        });
+        addChat(`[경고] ${z.name} 진입! 북동쪽에 보스 [${z.boss}]가 출몰합니다.`, '#f87171');
+      }
+
+      sendNet({ t: 'warp', zone: zoneId, x: me.x, y: me.y });
+      updateHud();
+    }
+
+    function castTownPortal() {
+      const z = ZONES[currentZone];
+      if (z.safe) {
+        if (z.next) enterZone(z.next, 350, 900);
+        return;
+      }
+      portals = [{ x: me.x + 36, y: me.y, to: `act${z.act}_town` }];
+      spawnEffect(me.x + 36, me.y, '#38bdf8', 18);
+      addChat('[타운 포탈] 파란색 포탈을 클릭(접근)하면 마을로 귀환합니다.', '#60a5fa');
+    }
+
+    // =========================================================
+    // 6. 전투, 스킬, 텔레포트, 스탯, 인벤토리
+    // =========================================================
+    function getMyStats() {
+      const cls = CLASSES[me.classId];
+      let dmg = cls.dmg + (me.level - 1) * 4;
+      let def = 5 + me.level * 2;
+      let bonusHp = 0;
+      let canTele = cls.canTele;
+
+      Object.values(me.equip).forEach(itemId => {
+        const it = ITEM_DB[itemId];
+        if (!it) return;
+        if (it.dmg) dmg += it.dmg;
+        if (it.def) def += it.def;
+        if (it.hp) bonusHp += it.hp;
+        if (it.tele) canTele = true;
+      });
+      return { dmg, def, maxHp: cls.baseHp + (me.level - 1) * 18 + bonusHp, maxMp: cls.baseMp + (me.level - 1) * 12, canTele };
+    }
+
+    function spawnSkillProjectile(sx, sy, tx, ty, clsId, isMine) {
+      const cls = CLASSES[clsId] || CLASSES.sorceress;
+      const baseAngle = Math.atan2(ty - sy, tx - sx);
+      const stats = isMine ? getMyStats() : { dmg: 10 };
+
+      if (clsId === 'amazon') {
+        [-0.22, -0.11, 0, 0.11, 0.22].forEach(off => {
+          const a = baseAngle + off;
+          projectiles.push({ x: sx, y: sy, vx: Math.cos(a) * 9, vy: Math.sin(a) * 9, life: 42, color: cls.color, r: 5, dmg: stats.dmg, isMine });
+        });
+      } else if (clsId === 'paladin') {
+        projectiles.push({ x: sx, y: sy, angle: 0, dist: 14, cx: sx, cy: sy, spiral: true, life: 70, color: cls.color, r: 9, dmg: stats.dmg * 1.2, isMine });
+      } else if (clsId === 'barbarian') {
+        for (let i = 0; i < 8; i++) {
+          const a = (Math.PI * 2 / 8) * i;
+          projectiles.push({ x: sx, y: sy, vx: Math.cos(a) * 6, vy: Math.sin(a) * 6, life: 16, color: cls.color, r: 10, dmg: stats.dmg * 1.3, isMine });
+        }
+      } else {
+        projectiles.push({ x: sx, y: sy, vx: Math.cos(baseAngle) * 8.5, vy: Math.sin(baseAngle) * 8.5, life: 50, color: cls.color, r: 8, dmg: stats.dmg * 1.15, isMine });
+      }
+    }
+
+    function castPrimarySkill(tx, ty) {
+      if (me.cd > 0) return;
+      const targetX = tx ?? (me.x + Math.cos(me.dir) * 180);
+      const targetY = ty ?? (me.y + Math.sin(me.dir) * 180);
+      me.dir = Math.atan2(targetY - me.y, targetX - me.x);
+      me.swing = 10;
+      me.cd = 16;
+      if (me.mp >= 5) me.mp -= 5;
+      spawnSkillProjectile(me.x, me.y, targetX, targetY, me.classId, true);
+      sendNet({ t: 'skill', sk: 'primary', tx: Math.round(targetX), ty: Math.round(targetY) });
+    }
+
+    function castTeleport(tx, ty) {
+      const st = getMyStats();
+      if (!st.canTele) {
+        addChat('[알림] 원소술사이거나 "수수께끼" 갑옷을 장착해야 텔레포트가 가능합니다!', '#fbbf24');
+        return;
+      }
+      if (me.mp < 12) { addChat('[알림] 마나가 부족합니다!', '#60a5fa'); return; }
+      me.mp -= 12;
+      spawnEffect(me.x, me.y, '#38bdf8', 14);
+      const dx = tx - me.x, dy = ty - me.y;
+      const dist = Math.min(260, Math.hypot(dx, dy));
+      const ang = Math.atan2(dy, dx);
+      me.x = Math.max(40, Math.min(MAP_W - 40, me.x + Math.cos(ang) * dist));
+      me.y = Math.max(40, Math.min(MAP_H - 40, me.y + Math.sin(ang) * dist));
+      me.targetX = null; me.targetY = null;
+      spawnEffect(me.x, me.y, '#c084fc', 16);
+      sendNet({ t: 'skill', sk: 'teleport', tx: Math.round(me.x), ty: Math.round(me.y) });
+    }
+
+    function castTeleportMobile() {
+      castTeleport(me.x + Math.cos(me.dir) * 200, me.y + Math.sin(me.dir) * 200);
+    }
+
+    function usePotion(type) {
+      if (type === 'hp' && me.hpPot > 0) { me.hpPot--; me.hp = Math.min(me.maxHp, me.hp + me.maxHp * 0.5); spawnEffect(me.x, me.y, '#ef4444', 10); }
+      else if (type === 'mp' && me.mpPot > 0) { me.mpPot--; me.mp = Math.min(me.maxMp, me.mp + me.maxMp * 0.5); spawnEffect(me.x, me.y, '#3b82f6', 10); }
+      else if (type === 'full' && me.fullPot > 0) { me.fullPot--; me.hp = me.maxHp; me.mp = me.maxMp; spawnEffect(me.x, me.y, '#c084fc', 14); }
+      updateHud();
+    }
+
+    function pickupNearestLoot() {
+      for (let i = loots.length - 1; i >= 0; i--) {
+        const l = loots[i];
+        if (Math.hypot(me.x - l.x, me.y - l.y) < 90) {
+          if (l.gold) {
+            me.gold += l.gold;
+            addChat(`[획득] ${l.gold} 골드`, '#fbbf24');
+          } else {
+            me.inventory.push(l.itemId);
+            const it = ITEM_DB[l.itemId];
+            addChat(`[획득] ${it.name}`, it.rarity === 'unique' ? '#d4af37' : '#60a5fa');
+          }
+          loots.splice(i, 1);
+          updateHud();
+          return;
+        }
+      }
+    }
+
+    function spawnEffect(x, y, color, count = 10) {
+      for (let i = 0; i < count; i++) {
+        particles.push({ x, y, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6, life: 18 + Math.random() * 10, color, s: 3 + Math.random() * 3 });
+      }
+    }
+
+    // =========================================================
+    // 7. 모달 & HUD 렌더링
+    // =========================================================
+    function openModal(id) {
+      if (id === 'invModal') renderInventory();
+      if (id === 'wpModal') renderWaypoints();
+      document.getElementById(id).classList.remove('hidden');
+    }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+    function renderInventory() {
+      const st = getMyStats();
+      me.maxHp = st.maxHp; me.maxMp = st.maxMp;
+      document.getElementById('statSummary').textContent =
+        `공격력: ${st.dmg} | 방어력: ${st.def} | 최대체력: ${st.maxHp} | 텔레포트: ${st.canTele ? '가능 ⚡' : '불가'}`;
+
+      const slots = [['weapon', '무기'], ['shield', '방패'], ['helm', '투구'], ['armor', '갑옷']];
+      document.getElementById('equipGrid').innerHTML = slots.map(([s, label]) => {
+        const it = ITEM_DB[me.equip[s]];
+        return `<div class="equip-box"><div style="color:#a89378;font-size:10px;">${label}</div><div class="${it ? 'r-' + it.rarity : ''}" style="font-weight:700;margin-top:2px;">${it ? it.name : '비어있음'}</div></div>`;
+      }).join('');
+
+      const invList = document.getElementById('invList');
+      invList.innerHTML = me.inventory.length ? '' : '<div style="font-size:11px;color:#6b7280;padding:12px;text-align:center;">가방이 비어있습니다. 몬스터를 사냥하세요!</div>';
+      me.inventory.forEach((itemId, idx) => {
+        const it = ITEM_DB[itemId];
+        if (!it) return;
+        const row = document.createElement('div');
+        row.className = 'inv-item';
+        row.innerHTML = `<span class="r-${it.rarity}" style="font-weight:700;">${it.name}</span><span style="font-size:10px;color:#a89378;">${it.slot === 'rune' ? '보관용' : '클릭해 장착'}</span>`;
+        row.onclick = () => {
+          if (it.slot === 'rune') return;
+          const prev = me.equip[it.slot];
+          me.equip[it.slot] = itemId;
+          me.inventory.splice(idx, 1);
+          if (prev && prev !== 'none') me.inventory.push(prev);
+          sendNet({ t: 'equip', slot: it.slot, item: itemId });
+          addChat(`[장착] ${it.name} 착용 완료!`, '#facc15');
+          renderInventory();
+          updateHud();
+        };
+        invList.appendChild(row);
+      });
+    }
+
+    function renderWaypoints() {
+      const wpList = document.getElementById('wpList');
+      wpList.innerHTML = Object.entries(ZONES).map(([zid, z]) =>
+        `<button class="d2-btn" style="text-align:left;padding:8px;${zid === currentZone ? 'border-color:#facc15;' : ''}" onclick="enterZone('${zid}'); closeModal('wpModal');">${z.safe ? '🏰' : '🔥'} ${z.name}</button>`
+      ).join('');
+    }
+
+    function addChat(txt, color = '#e5e7eb') {
+      const log = document.getElementById('chatLog');
+      const div = document.createElement('div');
+      div.style.color = color;
+      div.textContent = txt;
+      log.appendChild(div);
+      while (log.children.length > 25) log.removeChild(log.firstChild);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function updateHud() {
+      document.getElementById('hpOrbFill').style.height = `${Math.max(0, (me.hp / me.maxHp) * 100)}%`;
+      document.getElementById('mpOrbFill').style.height = `${Math.max(0, (me.mp / me.maxMp) * 100)}%`;
+      document.getElementById('hpText').textContent = `${Math.ceil(me.hp)}/${me.maxHp}`;
+      document.getElementById('mpText').textContent = `${Math.ceil(me.mp)}/${me.maxMp}`;
+      document.getElementById('lvlText').textContent = `Lv.${me.level}`;
+      document.getElementById('goldText').textContent = `${me.gold.toLocaleString()} G`;
+      document.getElementById('expBarFill').style.width = `${Math.min(100, (me.exp / me.maxExp) * 100)}%`;
+      document.getElementById('hpPotCnt').textContent = me.hpPot;
+      document.getElementById('mpPotCnt').textContent = me.mpPot;
+      document.getElementById('fullPotCnt').textContent = me.fullPot;
+    }
+
+    // =========================================================
+    // 8. 입력 처리 (PC 마우스/키보드 + 모바일 터치)
+    // =========================================================
+    const keys = {};
+    let camX = 0, camY = 0;
+
+    window.addEventListener('keydown', (e) => {
+      if (!started) return;
+      const chatIn = document.getElementById('chatInput');
+      if (e.key === 'Enter') {
+        if (chatIn.classList.contains('hidden')) {
+          chatIn.classList.remove('hidden'); chatIn.focus();
+        } else {
+          const v = chatIn.value.trim();
+          if (v) sendNet({ t: 'chat', txt: v });
+          chatIn.value = ''; chatIn.classList.add('hidden');
+        }
+        return;
+      }
+      if (!chatIn.classList.contains('hidden')) return;
+
+      const k = e.key.toLowerCase();
+      keys[k] = true;
+      if (k === '1') usePotion('hp');
+      if (k === '2') usePotion('mp');
+      if (k === '3') usePotion('full');
+      if (k === '4' || k === 'p') castTownPortal();
+      if (k === 'i') openModal('invModal');
+      if (k === 'w') openModal('wpModal');
+      if (k === 't') castTeleport(mouseWorld.x, mouseWorld.y);
+      if (k === ' ') castPrimarySkill(mouseWorld.x, mouseWorld.y);
+      if (k === 'e' || k === 'f') pickupNearestLoot();
+    });
+    window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+
+    const mouseWorld = { x: 800, y: 600 };
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+    canvas.addEventListener('pointermove', (e) => {
+      mouseWorld.x = e.clientX + camX;
+      mouseWorld.y = e.clientY + camY;
+    });
+    canvas.addEventListener('pointerdown', (e) => {
+      if (!started) return;
+      const wx = e.clientX + camX;
+      const wy = e.clientY + camY;
+      mouseWorld.x = wx; mouseWorld.y = wy;
+
+      if (e.button === 2) { castTeleport(wx, wy); return; }
+
+      // 바닥 아이템 클릭 확인
+      for (let i = loots.length - 1; i >= 0; i--) {
+        if (Math.hypot(wx - loots[i].x, wy - loots[i].y) < 34) {
+          if (Math.hypot(me.x - loots[i].x, me.y - loots[i].y) < 110) {
+            pickupNearestLoot();
+          } else { me.targetX = loots[i].x; me.targetY = loots[i].y; }
+          return;
+        }
+      }
+      // 포탈 클릭 확인
+      for (const pt of portals) {
+        if (Math.hypot(wx - pt.x, wy - pt.y) < 36) { enterZone(pt.to); return; }
+      }
+      // 몬스터 클릭 시 스킬 발사
+      const clickedMob = monsters.find(m => Math.hypot(wx - m.x, wy - m.y) < m.r + 18);
+      if (clickedMob) {
+        activeTarget = clickedMob;
+        castPrimarySkill(clickedMob.x, clickedMob.y);
+        return;
+      }
+      // 일반 바닥 클릭 -> 이동
+      me.targetX = Math.max(30, Math.min(MAP_W - 30, wx));
+      me.targetY = Math.max(30, Math.min(MAP_H - 30, wy));
+    });
+
+    // =========================================================
+    // 9. 메인 게임 루프 (업데이트 + 보간 + 도트 렌더링)
+    // =========================================================
+    let lastNetPos = 0;
+
+    function update() {
+      if (!started) return;
+      tick++;
+      if (me.swing > 0) me.swing--;
+      if (me.cd > 0) me.cd--;
+
+      // 마나/체력 자연 회복
+      if (tick % 30 === 0) {
+        me.mp = Math.min(me.maxMp, me.mp + 2);
+        if (ZONES[currentZone].safe) me.hp = Math.min(me.maxHp, me.hp + 5);
+        updateHud();
+      }
+
+      // 플레이어 이동 (키보드 우선, 없으면 클릭 목표지점)
+      let vx = 0, vy = 0;
+      if (keys['a'] || keys['arrowleft']) vx -= 1;
+      if (keys['d'] || keys['arrowright']) vx += 1;
+      if (keys['w'] || keys['arrowup']) vy -= 1;
+      if (keys['s'] || keys['arrowdown']) vy += 1;
+
+      if (vx !== 0 || vy !== 0) {
+        me.targetX = null; me.targetY = null;
+        const len = Math.hypot(vx, vy);
+        me.x += (vx / len) * me.speed;
+        me.y += (vy / len) * me.speed;
+        me.dir = Math.atan2(vy, vx);
+        me.isMoving = true;
+      } else if (me.targetX !== null) {
+        const dx = me.targetX - me.x, dy = me.targetY - me.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 6) {
+          me.x += (dx / dist) * me.speed;
+          me.y += (dy / dist) * me.speed;
+          me.dir = Math.atan2(dy, dx);
+          me.isMoving = true;
+        } else { me.targetX = null; me.targetY = null; me.isMoving = false; }
+      } else { me.isMoving = false; }
+
+      me.x = Math.max(30, Math.min(MAP_W - 30, me.x));
+      me.y = Math.max(30, Math.min(MAP_H - 30, me.y));
+
+      // 서버로 내 위치 전송 (최대 초당 15회)
+      const now = performance.now();
+      if (me.isMoving && now - lastNetPos > 66) {
+        sendNet({ t: 'm', x: Math.round(me.x), y: Math.round(me.y), d: Number(me.dir.toFixed(2)) });
+        lastNetPos = now;
+      }
+
+      // 다른 유저 부드러운 위치 보간 (Lerp)
+      otherPlayers.forEach(op => {
+        op.x += (op.tx - op.x) * 0.25;
+        op.y += (op.ty - op.y) * 0.25;
+        if (op.moving > 0) op.moving--;
+        if (op.swing > 0) op.swing--;
+      });
+
+      // 투사체 업데이트 & 몬스터 피격
+      for (let i = projectiles.length - 1; i >= 0; i--) {
+        const p = projectiles[i];
+        p.life--;
+        if (p.spiral) {
+          p.angle += 0.22; p.dist += 1.6;
+          p.x = p.cx + Math.cos(p.angle) * p.dist;
+          p.y = p.cy + Math.sin(p.angle) * p.dist;
+        } else { p.x += p.vx; p.y += p.vy; }
+
+        if (p.isMine) {
+          for (let j = monsters.length - 1; j >= 0; j--) {
+            const m = monsters[j];
+            if (Math.hypot(p.x - m.x, p.y - m.y) < m.r + p.r) {
+              m.hp -= p.dmg; m.hit = 5; activeTarget = m;
+              spawnEffect(p.x, p.y, p.color, 5);
+              if (!p.spiral) p.life = 0;
+              if (m.hp <= 0) {
+                spawnEffect(m.x, m.y, '#ef4444', m.isBoss ? 24 : 10);
+                me.exp += m.exp;
+                if (me.exp >= me.maxExp) {
+                  me.level++; me.exp -= me.maxExp; me.maxExp = Math.floor(me.maxExp * 1.4);
+                  const st = getMyStats(); me.maxHp = st.maxHp; me.maxMp = st.maxMp; me.hp = me.maxHp; me.mp = me.maxMp;
+                  spawnEffect(me.x, me.y, '#facc15', 25);
+                  addChat(`🎉 레벨 업! Lv.${me.level} 달성!`, '#facc15');
+                }
+                // 아이템 & 골드 드랍
+                loots.push({ x: m.x - 10, y: m.y, gold: Math.floor(20 + Math.random() * 50 * ZONES[currentZone].act) });
+                if (m.isBoss || Math.random() < 0.45) {
+                  const dropId = DROP_POOL[Math.floor(Math.random() * DROP_POOL.length)];
+                  loots.push({ x: m.x + 12, y: m.y + 6, itemId: dropId });
+                }
+                if (m.isBoss) addChat(`🏆 보스 [${m.name}] 처치! 유니크 아이템을 확인하세요!`, '#d4af37');
+                monsters.splice(j, 1);
+                if (activeTarget === m) activeTarget = null;
+                updateHud();
+              }
+              break;
+            }
+          }
+        }
+        if (p.life <= 0) projectiles.splice(i, 1);
+      }
+
+      // 몬스터 AI (추적 & 공격)
+      monsters.forEach(m => {
+        if (m.hit > 0) m.hit--;
+        const dist = Math.hypot(me.x - m.x, me.y - m.y);
+        if (dist < 320 && dist > m.r + 14) {
+          m.x += ((me.x - m.x) / dist) * m.spd;
+          m.y += ((me.y - m.y) / dist) * m.spd;
+        } else if (dist <= m.r + 18 && tick % 25 === 0) {
+          const st = getMyStats();
+          const taken = Math.max(2, m.dmg - Math.floor(st.def * 0.25));
+          me.hp -= taken;
+          spawnEffect(me.x, me.y, '#dc2626', 4);
+          if (me.hp <= 0) {
+            addChat('💀 사망했습니다! 마을에서 부활합니다.', '#f87171');
+            enterZone(`act${ZONES[currentZone].act}_town`);
+          }
+          updateHud();
+        }
+      });
+
+      // 타겟 체력바 업데이트
+      const tWrap = document.getElementById('targetBarWrap');
+      if (activeTarget && activeTarget.hp > 0) {
+        tWrap.style.display = 'block';
+        document.getElementById('targetName').textContent = (activeTarget.isBoss ? '👑 ' : '') + activeTarget.name;
+        document.getElementById('targetHpFill').style.width = `${Math.max(0, (activeTarget.hp / activeTarget.maxHp) * 100)}%`;
+      } else { tWrap.style.display = 'none'; }
+
+      // 파티클
+      for (let i = particles.length - 1; i >= 0; i--) {
+        particles[i].x += particles[i].vx; particles[i].y += particles[i].vy;
+        particles[i].life--;
+        if (particles[i].life <= 0) particles.splice(i, 1);
+      }
+
+      // 카메라 추적
+      camX = Math.max(0, Math.min(MAP_W - canvas.width, me.x - canvas.width / 2));
+      camY = Math.max(0, Math.min(MAP_H - canvas.height, me.y - canvas.height / 2));
+    }
+
+    function draw() {
+      ctx.imageSmoothingEnabled = false;
+      const z = ZONES[currentZone];
+      ctx.fillStyle = z.bg;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      if (!started) return;
+
+      ctx.save();
+      ctx.translate(-Math.round(camX), -Math.round(camY));
+
+      // 1) 고딕 도트 타일 바닥
+      const tile = 48;
+      const startX = Math.floor(camX / tile) * tile;
+      const startY = Math.floor(camY / tile) * tile;
+      ctx.strokeStyle = z.tile;
+      ctx.lineWidth = 2;
+      for (let x = startX; x < camX + canvas.width + tile; x += tile) {
+        for (let y = startY; y < camY + canvas.height + tile; y += tile) {
+          if (((x + y) / tile) % 2 === 0) {
+            ctx.fillStyle = z.tile;
+            ctx.fillRect(x, y, tile, tile);
+          }
+          ctx.strokeRect(x, y, tile, tile);
+        }
+      }
+
+      // 마을 중앙 웨이포인트 마법진
+      if (z.safe) {
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.ellipse(800, 520, 36, 20, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = 'rgba(56,189,248,0.22)'; ctx.fill();
+        ctx.fillStyle = '#bae6fd'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('🌀 웨이포인트 (W)', 800, 495);
+      }
+
+      // 타운 포탈 렌더링
+      portals.forEach(pt => {
+        ctx.fillStyle = 'rgba(56,189,248,0.45)';
+        ctx.beginPath(); ctx.ellipse(pt.x, pt.y, 18, 28, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#e0f2fe'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = '#bae6fd'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('타운 포탈', pt.x, pt.y - 34);
+      });
+
+      // 바닥 드랍 아이템 (원작 검은 박스 이름표)
+      loots.forEach(l => {
+        const label = l.gold ? `${l.gold} 골드` : ITEM_DB[l.itemId].name;
+        const col = l.gold ? '#fbbf24' : (ITEM_DB[l.itemId].rarity === 'unique' ? '#d4af37' : ITEM_DB[l.itemId].rarity === 'rune' ? '#fb923c' : '#60a5fa');
+        ctx.fillStyle = col;
+        ctx.fillRect(l.x - 5, l.y - 5, 10, 10);
+        ctx.font = 'bold 11px "Malgun Gothic", sans-serif';
+        const w = ctx.measureText(label).width + 10;
+        ctx.fillStyle = 'rgba(0,0,0,0.82)';
+        ctx.fillRect(l.x - w / 2, l.y - 24, w, 16);
+        ctx.fillStyle = col; ctx.textAlign = 'center';
+        ctx.fillText(label, l.x, l.y - 12);
+      });
+
+      // Y좌표 기준 정렬(Depth Sorting)로 캐릭터 & 몬스터 그리기
+      const drawables = [{ y: me.y, fn: () => drawPixelCharacter(ctx, me.x, me.y, me.classId, me.equip, me.dir, me.isMoving ? (Math.floor(tick / 8) % 2) : 0, me.swing, true, me.name, me.level) }];
+      otherPlayers.forEach(op => {
+        drawables.push({ y: op.y, fn: () => drawPixelCharacter(ctx, op.x, op.y, op.c, op.eq, op.d, op.moving > 0 ? (Math.floor(tick / 8) % 2) : 0, op.swing, false, op.n, op.lv) });
+      });
+      monsters.forEach(m => {
+        drawables.push({
+          y: m.y,
+          fn: () => {
+            ctx.save(); ctx.translate(Math.round(m.x), Math.round(m.y));
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.beginPath(); ctx.ellipse(0, m.r * 0.7, m.r, m.r * 0.45, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#111'; ctx.fillRect(-m.r - 2, -m.r - 2, m.r * 2 + 4, m.r * 2 + 4);
+            ctx.fillStyle = m.hit > 0 ? '#ffffff' : m.color;
+            ctx.fillRect(-m.r, -m.r, m.r * 2, m.r * 2);
+            // 몬스터 눈
+            ctx.fillStyle = '#fef08a';
+            ctx.fillRect(-m.r * 0.5, -m.r * 0.4, 4, 4);
+            ctx.fillRect(m.r * 0.2, -m.r * 0.4, 4, 4);
+            // 체력바
+            ctx.fillStyle = '#000'; ctx.fillRect(-20, -m.r - 12, 40, 5);
+            ctx.fillStyle = '#ef4444'; ctx.fillRect(-19, -m.r - 11, 38 * Math.max(0, m.hp / m.maxHp), 3);
+            ctx.restore();
+          }
+        });
+      });
+
+      drawables.sort((a, b) => a.y - b.y);
+      drawables.forEach(d => d.fn());
+
+      // 스킬 투사체
+      projectiles.forEach(p => {
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = p.color; ctx.lineWidth = 3; ctx.stroke();
+      });
+
+      // 파티클
+      particles.forEach(pt => {
+        ctx.fillStyle = pt.color;
+        ctx.fillRect(Math.round(pt.x), Math.round(pt.y), pt.s, pt.s);
+      });
+
+      ctx.restore();
+
+      // 고딕 다크 비네팅 (디아블로 2 특유의 어두운 시야)
+      const grad = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, canvas.height * 0.28, canvas.width / 2, canvas.height / 2, canvas.width * 0.72);
+      grad.addColorStop(0, 'rgba(0,0,0,0)');
+      grad.addColorStop(1, 'rgba(0,0,0,0.72)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function loop() { update(); draw(); requestAnimationFrame(loop); }
+    loop();
+
+    // =========================================================
+    // 10. 게임 입장 버튼
+    // =========================================================
+    document.getElementById('enterWorldBtn').onclick = () => {
+      const cls = CLASSES[selectedClass];
+      me.classId = selectedClass;
+      me.name = document.getElementById('charNameInput').value.trim() || `${cls.name}영웅`;
+      me.equip.weapon = cls.startWpn;
+      const st = getMyStats();
+      me.maxHp = st.maxHp; me.hp = st.maxHp; me.maxMp = st.maxMp; me.mp = st.maxMp;
+
+      document.getElementById('leftSkillIcon').textContent = cls.icon;
+      document.getElementById('leftSkillName').textContent = cls.skill.slice(0, 4);
+      document.getElementById('charSelectScreen').classList.add('hidden');
+      document.getElementById('topBar').classList.remove('hidden');
+      document.getElementById('chatWrap').classList.remove('hidden');
+      document.getElementById('d2Hud').classList.remove('hidden');
+      document.getElementById('mobileControls').classList.remove('hidden');
+
+      started = true;
+      connectServer();
+      enterZone('act1_town');
+    };
+  </script>
+</body>
+</html>
