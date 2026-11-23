@@ -5,7 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>KIABLO — 도트 온라인 RPG</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-tap-highlight-color: transparent; }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body, canvas, button, .d2-panel, .skill-cell { user-select: none; -webkit-user-select: none; }
+    /* 모바일 한글 입력(IME) 정상 작동 필수 설정 */
+    input, textarea {
+      user-select: text !important;
+      -webkit-user-select: text !important;
+      touch-action: manipulation;
+    }
     html, body {
       width: 100%; height: 100dvh; overflow: hidden;
       background: #070606; color: #e6d5b8;
@@ -33,11 +40,10 @@
     }
     .d2-input {
       width: 100%; padding: 9px 10px; background: #090706;
-      border: 1px solid #6b533b; color: #f5d89c; font-size: 13px; outline: none;
+      border: 1px solid #6b533b; color: #f5d89c; font-size: 14px; outline: none;
     }
     .d2-input:focus { border-color: #e5b85c; }
 
-    /* 휴대폰 010- 분리 입력칸 */
     .phone-row { display: flex; gap: 6px; align-items: stretch; }
     .phone-prefix {
       display: flex; align-items: center; justify-content: center;
@@ -140,13 +146,13 @@
     #expBarFill { height: 100%; background: linear-gradient(90deg, #b45309, #facc15); width: 0%; }
     .hud-row { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
     .skill-slot {
-      width: 44px; height: 44px; background: #1a110e; border: 2px solid #8a6a47;
+      width: 48px; height: 44px; background: #1a110e; border: 2px solid #8a6a47;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       cursor: pointer; flex-shrink: 0;
     }
     .skill-slot:hover { border-color: #facc15; }
-    .skill-slot span { font-size: 18px; line-height: 1; }
-    .skill-slot small { font-size: 9px; color: #d4af37; margin-top: 2px; }
+    .skill-slot span { font-size: 17px; line-height: 1; }
+    .skill-slot small { font-size: 9px; color: #d4af37; margin-top: 2px; white-space: nowrap; overflow: hidden; max-width: 44px; }
     .belt-group { display: flex; gap: 4px; }
     .belt-slot {
       width: 36px; height: 38px; background: #140f0c; border: 1px solid #6b533b;
@@ -156,11 +162,12 @@
     .belt-slot .key { position: absolute; top: 1px; left: 3px; font-size: 9px; color: #a89378; }
     .belt-slot .cnt { position: absolute; bottom: 1px; right: 3px; font-size: 9px; color: #fff; font-weight: 900; }
 
+    /* 모달 공통 */
     .modal-overlay {
-      position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,0.72);
+      position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,0.75);
       display: flex; align-items: center; justify-content: center; padding: 12px;
     }
-    .modal-box { width: 100%; max-width: 460px; max-height: 85dvh; overflow-y: auto; padding: 14px; }
+    .modal-box { width: 100%; max-width: 460px; max-height: 88dvh; overflow-y: auto; padding: 14px; }
     .modal-header {
       display: flex; justify-content: space-between; align-items: center;
       border-bottom: 1px solid #5c4632; padding-bottom: 8px; margin-bottom: 10px;
@@ -174,6 +181,58 @@
     }
     .inv-item:hover { border-color: #d4af37; background: #221712; }
     .wp-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+    /* 스킬 트리 전용 UI (우측 세로 탭 구조) */
+    .skill-modal-layout {
+      display: flex; width: 100%; max-width: 440px; min-height: 450px;
+      background: #161312; border: 2px solid #6b533b; box-shadow: 0 0 30px #000;
+    }
+    .skill-tree-area {
+      flex: 1; padding: 10px;
+      background: radial-gradient(circle at 50% 40%, #2a2625 0%, #141211 100%);
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .skill-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; flex: 1;
+    }
+    .skill-cell {
+      position: relative; min-height: 58px; border: 2px solid #4a3726;
+      background: rgba(15,12,11,0.9); display: flex; flex-direction: column;
+      align-items: center; justify-content: center; padding: 4px 2px; text-align: center;
+      cursor: pointer; transition: 0.12s;
+    }
+    .skill-cell.empty { border: none; background: transparent; cursor: default; pointer-events: none; }
+    .skill-cell.locked { opacity: 0.42; border-color: #292524; }
+    .skill-cell.available { border-color: #a8824c; }
+    .skill-cell.learned { border-color: #e5b85c; background: rgba(55,30,18,0.92); }
+    .skill-cell.active-sk { box-shadow: 0 0 12px #facc15; border-color: #fef08a; }
+    .skill-cell .sk-ico { font-size: 20px; line-height: 1; }
+    .skill-cell .sk-nm { font-size: 10px; font-weight: 700; color: #f5d89c; margin-top: 2px; line-height: 1.1; }
+    .skill-cell .sk-lv {
+      position: absolute; bottom: 2px; right: 3px; font-size: 10px; font-weight: 900;
+      background: rgba(0,0,0,0.8); padding: 0 3px; color: #fff;
+    }
+    .skill-cell .sk-lv.boosted { color: #60a5fa; }
+    .skill-cell .sk-req {
+      position: absolute; top: 1px; left: 3px; font-size: 9px; color: #9ca3af;
+    }
+    .skill-right-tabs {
+      width: 98px; background: #120e0d; border-left: 2px solid #5c4632;
+      display: flex; flex-direction: column;
+    }
+    .skill-points-box {
+      padding: 10px 6px; text-align: center; border-bottom: 2px solid #5c4632;
+      background: #1f1410;
+    }
+    .skill-tab-btn {
+      flex: 1; border: none; border-bottom: 1px solid #4a3726;
+      background: #181311; color: #a89378; font-weight: 900; font-size: 12px;
+      cursor: pointer; padding: 8px 4px; text-align: center; line-height: 1.3;
+    }
+    .skill-tab-btn.active {
+      background: linear-gradient(90deg, #3b1c14, #22110c);
+      color: #fde047; border-left: 3px solid #facc15;
+    }
 
     .r-normal { color: #f3f4f6; }
     .r-magic  { color: #60a5fa; }
@@ -189,7 +248,7 @@
       #mobileControls { display: flex; }
       .orb-wrap { width: 64px; height: 64px; }
       .belt-slot { width: 30px; height: 34px; font-size: 14px; }
-      .skill-slot { width: 38px; height: 38px; }
+      .skill-slot { width: 40px; height: 38px; }
     }
   </style>
 </head>
@@ -209,15 +268,14 @@
       </div>
 
       <div style="display:flex; flex-direction:column; gap:8px;">
-        <input id="authUserId" class="d2-input" type="text" maxlength="10" placeholder="아이디 (한글/영문/숫자/-/_ 10자 이내)" />
+        <input id="authUserId" class="d2-input" type="text" maxlength="10" autocomplete="username" placeholder="아이디 (한글/영문/숫자/-/_ 10자 이내)" />
 
-        <!-- 휴대폰 번호: 010- 고정 + 숫자 8자리 -->
         <div id="authPhoneWrap" class="phone-row hidden">
           <div class="phone-prefix">010-</div>
           <input id="authPhone8" class="d2-input" type="tel" inputmode="numeric" maxlength="8" placeholder="뒷번호 숫자 8자리" />
         </div>
 
-        <input id="authPassword" class="d2-input" type="password" maxlength="20" placeholder="비밀번호 (4~20자)" />
+        <input id="authPassword" class="d2-input" type="password" maxlength="20" autocomplete="current-password" placeholder="비밀번호 (4~20자)" />
         <div id="authError" class="err-msg"></div>
         <button id="authSubmitBtn" class="d2-btn" style="padding:10px; font-size:14px;">KIABLO 로그인</button>
       </div>
@@ -237,7 +295,7 @@
         <button class="d2-btn" onclick="logoutKiablo()" style="padding:10px;">로그아웃</button>
       </div>
       <div style="font-size:11px; color:#9ca3af; text-align:center;">
-        PC: 클릭/WASD 이동 · 좌클릭 공격 · 우클릭/T 텔레포트 · 1~4 포션 · I 가방 · W 웨이포인트
+        PC: 클릭/WASD 이동 · T 스킬창 · I 가방 · W 웨이포인트 · 우클릭/R 텔포 · ESC 메뉴
       </div>
     </div>
   </div>
@@ -255,9 +313,11 @@
       <div id="targetHpBg"><div id="targetHpFill"></div></div>
     </div>
     <div id="topBtns">
+      <button class="d2-btn" onclick="openModal('skillModal')">✨ 스킬(T)</button>
       <button class="d2-btn" onclick="openModal('wpModal')">🌀 웨이포인트(W)</button>
-      <button class="d2-btn" onclick="openModal('invModal')">🎒 장비/가방(I)</button>
+      <button class="d2-btn" onclick="openModal('invModal')">🎒 가방(I)</button>
       <button class="d2-btn" onclick="castTownPortal()">🚪 포탈(P)</button>
+      <button class="d2-btn" onclick="openModal('escModal')">⚙️ ESC</button>
     </div>
   </div>
 
@@ -284,7 +344,7 @@
     <div id="hudCenter" class="d2-panel">
       <div class="hud-row">
         <div class="skill-slot" onclick="castPrimarySkill()" title="주력 스킬 (Space / 좌클릭)">
-          <span id="leftSkillIcon">❄️</span>
+          <span id="leftSkillIcon">🔨</span>
           <small id="leftSkillName">스킬</small>
         </div>
         <div class="belt-group">
@@ -293,9 +353,9 @@
           <div class="belt-slot" onclick="usePotion('full')"><span class="key">3</span>🟣<span class="cnt" id="fullPotCnt">2</span></div>
           <div class="belt-slot" onclick="castTownPortal()"><span class="key">4</span>📜<span class="cnt">∞</span></div>
         </div>
-        <div class="skill-slot" onclick="castTeleportMobile()" title="텔레포트 (우클릭 / T)">
+        <div class="skill-slot" onclick="castTeleportMobile()" title="텔레포트 (우클릭 / R)">
           <span>⚡</span>
-          <small>텔포(T)</small>
+          <small>텔포(R)</small>
         </div>
       </div>
       <div style="display:flex; align-items:center; gap:8px;">
@@ -311,6 +371,44 @@
     </div>
   </div>
 
+  <!-- 스킬 트리 모달 (T 키) -->
+  <div id="skillModal" class="modal-overlay hidden" onclick="if(event.target===this) closeModal('skillModal')">
+    <div class="skill-modal-layout">
+      <div class="skill-tree-area">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #4a3726; padding-bottom:6px;">
+          <span id="skillTabTitle" class="d2-title" style="font-size:14px;">전투 기술</span>
+          <button class="d2-btn" style="padding:3px 8px;" onclick="closeModal('skillModal')">닫기</button>
+        </div>
+        <div id="skillGrid" class="skill-grid"></div>
+        <div id="skillDescBox" style="font-size:11px; color:#d6c3a5; background:#0d0a09; border:1px solid #4a3726; padding:6px 8px; min-height:42px;">
+          스킬을 클릭하여 투자(최대 20)하거나, 배운 스킬을 우클릭/재클릭해 장착하세요.
+        </div>
+      </div>
+      <div class="skill-right-tabs">
+        <div class="skill-points-box">
+          <div style="font-size:10px; color:#a89378;">남은 포인트</div>
+          <div id="skillPtsVal" style="font-size:20px; font-weight:900; color:#facc15;">1</div>
+          <div id="bonusSkillVal" style="font-size:10px; color:#60a5fa; margin-top:2px;">아이템 +0</div>
+        </div>
+        <button id="stab_def" class="skill-tab-btn" onclick="switchSkillTab('def')">방어<br>오라</button>
+        <button id="stab_off" class="skill-tab-btn" onclick="switchSkillTab('off')">공격<br>오라</button>
+        <button id="stab_com" class="skill-tab-btn active" onclick="switchSkillTab('com')">전투<br>기술</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ESC 게임 종료 메뉴 모달 -->
+  <div id="escModal" class="modal-overlay hidden" onclick="if(event.target===this) closeModal('escModal')">
+    <div class="d2-panel modal-box" style="max-width:300px; text-align:center;">
+      <h2 class="d2-title" style="font-size:20px; margin-bottom:14px;">KIABLO 메뉴</h2>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <button class="d2-btn" style="padding:10px; font-size:13px;" onclick="closeModal('escModal')">▶ 게임 계속하기</button>
+        <button class="d2-btn" style="padding:10px; font-size:13px;" onclick="returnToCharSelect()">👤 직업 선택으로</button>
+        <button class="d2-btn" style="padding:10px; font-size:13px; border-color:#ef4444; color:#fca5a5;" onclick="exitGame()">🚪 게임 종료 (로그아웃)</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 인벤토리 / 장비 모달 -->
   <div id="invModal" class="modal-overlay hidden" onclick="if(event.target===this) closeModal('invModal')">
     <div class="d2-panel modal-box">
@@ -320,7 +418,7 @@
       </div>
       <div id="statSummary" style="font-size:11px; color:#d6c3a5; margin-bottom:8px;"></div>
       <div class="equip-grid" id="equipGrid"></div>
-      <div style="font-size:11px; color:#a89378; margin-bottom:4px;">가방 (클릭하여 장착 — 외형 즉시 반영)</div>
+      <div style="font-size:11px; color:#a89378; margin-bottom:4px;">가방 (클릭하여 장착 — 외형 &amp; +스킬 즉시 반영)</div>
       <div class="inv-list" id="invList"></div>
     </div>
   </div>
@@ -340,12 +438,13 @@
     const API_BASE = 'https://kiablo.duckdns.org';
     const WS_URL = 'wss://kiablo.duckdns.org';
     const MAP_W = 1600, MAP_H = 1200;
+    const MAX_LEVEL = 99;
+    const MAX_PURE_SKILL = 20;
 
     let authMode = 'login';
     let authToken = localStorage.getItem('kiablo_token') || null;
     let authUserId = localStorage.getItem('kiablo_user_id') || null;
 
-    // 휴대폰 뒷번호 8자리 숫자만 입력 강제
     const authPhone8 = document.getElementById('authPhone8');
     authPhone8.addEventListener('input', () => {
       authPhone8.value = authPhone8.value.replace(/\D/g, '').slice(0, 8);
@@ -381,7 +480,6 @@
       }
 
       const formattedPhone = phone8.length === 8 ? `010-${phone8.slice(0, 4)}-${phone8.slice(4)}` : '';
-
       try {
         const endpoint = authMode === 'login' ? '/api/login' : '/api/register';
         const res = await fetch(API_BASE + endpoint, {
@@ -390,12 +488,8 @@
           body: JSON.stringify({ userId, phone: formattedPhone, password })
         });
         const data = await res.json();
-        if (!res.ok) {
-          errEl.textContent = data.error || '인증에 실패했습니다.';
-          return;
-        }
-        authToken = data.token;
-        authUserId = data.userId;
+        if (!res.ok) { errEl.textContent = data.error || '인증에 실패했습니다.'; return; }
+        authToken = data.token; authUserId = data.userId;
         localStorage.setItem('kiablo_token', authToken);
         localStorage.setItem('kiablo_user_id', authUserId);
         showCharSelect();
@@ -403,7 +497,6 @@
         errEl.textContent = '서버에 연결할 수 없습니다. 잠시 후 다시 시도하세요.';
       }
     }
-
     document.getElementById('authSubmitBtn').onclick = handleAuthSubmit;
 
     function showCharSelect() {
@@ -412,26 +505,174 @@
       document.getElementById('welcomeUserText').textContent = `접속 계정: ${authUserId} · 직업을 선택하고 입장하세요`;
     }
 
+    function returnToCharSelect() {
+      closeModal('escModal');
+      started = false;
+      if (ws) { ws.close(); ws = null; }
+      ['topBar','chatWrap','d2Hud','mobileControls'].forEach(id => document.getElementById(id).classList.add('hidden'));
+      showCharSelect();
+    }
+
+    function exitGame() { logoutKiablo(); }
     function logoutKiablo() {
       localStorage.removeItem('kiablo_token');
       localStorage.removeItem('kiablo_user_id');
       authToken = null; authUserId = null;
       location.reload();
     }
-
     if (authToken && authUserId) showCharSelect();
 
     // =========================================================
-    // 1. 게임 마스터 데이터
+    // 1. 성기사 3개 탭 스킬 트리 (6행 x 3열, 이미지 동일 배치)
+    // =========================================================
+    const PALADIN_TREES = {
+      def: {
+        title: '방어 오라',
+        skills: [
+          { id: 'prayer',     name: '기도',      ico: '🙏', row: 0, col: 0, reqLv: 1,  req: [], desc: '체력을 지속적으로 회복합니다.' },
+          { id: 'res_fire',   name: '화염 저항', ico: '🔥', row: 0, col: 2, reqLv: 1,  req: [], desc: '화염 저항력을 높입니다.' },
+          { id: 'defiance',   name: '인내',      ico: '🛡️', row: 1, col: 1, reqLv: 6,  req: [], desc: '방어력을 크게 증가시킵니다.' },
+          { id: 'res_cold',   name: '냉기 저항', ico: '❄️', row: 1, col: 2, reqLv: 6,  req: [], desc: '냉기 저항력을 높입니다.' },
+          { id: 'cleansing',  name: '정화',      ico: '✨', row: 2, col: 0, reqLv: 12, req: ['prayer'], desc: '저주 및 중독 지속시간을 줄입니다.' },
+          { id: 'res_light',  name: '번개 저항', ico: '⚡', row: 2, col: 2, reqLv: 12, req: [], desc: '번개 저항력을 높입니다.' },
+          { id: 'vigor',      name: '원기',      ico: '💨', row: 3, col: 1, reqLv: 18, req: ['defiance','cleansing'], desc: '이동 속도가 크게 증가합니다.' },
+          { id: 'meditation', name: '명상',      ico: '🧘', row: 4, col: 0, reqLv: 24, req: ['cleansing'], desc: '마나 회복 속도가 대폭 상승합니다.' },
+          { id: 'redemption', name: '속죄',      ico: '✝️', row: 5, col: 1, reqLv: 30, req: ['vigor'], desc: '적 처치 시 체력과 마나를 흡수합니다.' },
+          { id: 'salvation',  name: '구원',      ico: '🌟', row: 5, col: 2, reqLv: 30, req: [], desc: '모든 원소 저항력을 증가시킵니다.' }
+        ]
+      },
+      off: {
+        title: '공격 오라',
+        skills: [
+          { id: 'might',      name: '위세',          ico: '💪', row: 0, col: 0, reqLv: 1,  req: [], desc: '물리 공격력을 증가시킵니다.' },
+          { id: 'holy_fire',  name: '신성한 불꽃',   ico: '🔥', row: 1, col: 1, reqLv: 6,  req: ['might'], desc: '주변 적에게 화염 피해를 줍니다.' },
+          { id: 'thorns',     name: '가시',          ico: '🌵', row: 1, col: 2, reqLv: 6,  req: [], desc: '공격받은 피해를 적에게 반사합니다.' },
+          { id: 'blessed_aim',name: '축복받은 조준', ico: '🎯', row: 2, col: 0, reqLv: 12, req: ['might'], desc: '명중률과 치명타를 높입니다.' },
+          { id: 'conc',       name: '집중',          ico: '⚔️', row: 3, col: 0, reqLv: 18, req: ['blessed_aim'], desc: '망치 및 물리 피해를 대폭 증폭합니다.' },
+          { id: 'holy_freeze',name: '신성한 빙결',   ico: '🧊', row: 3, col: 1, reqLv: 18, req: ['holy_fire'], desc: '주변 적을 얼려 느리게 만듭니다.' },
+          { id: 'holy_shock', name: '신성한 충격',   ico: '⚡', row: 4, col: 1, reqLv: 24, req: ['holy_freeze'], desc: '강력한 번개 피해를 추가합니다.' },
+          { id: 'sanctuary',  name: '성역',          ico: '🔆', row: 4, col: 2, reqLv: 24, req: ['thorns','holy_freeze'], desc: '언데드에게 추가 피해를 주고 밀쳐냅니다.' },
+          { id: 'fanaticism', name: '광신',          ico: '💢', row: 5, col: 0, reqLv: 30, req: ['conc'], desc: '공격 속도와 공격력을 극대화합니다.' },
+          { id: 'conviction', name: '선고',          ico: '👁️', row: 5, col: 2, reqLv: 30, req: ['sanctuary'], desc: '적의 방어력과 저항력을 크게 낮춥니다.' }
+        ]
+      },
+      com: {
+        title: '전투 기술',
+        skills: [
+          { id: 'sacrifice',  name: '희생',          ico: '🩸', row: 0, col: 0, reqLv: 1,  req: [], desc: '체력을 소모해 강력한 일격을 가합니다.' },
+          { id: 'smite',      name: '강타',          ico: '🛡️', row: 0, col: 2, reqLv: 1,  req: [], desc: '방패로 적을 강타해 기절시킵니다.' },
+          { id: 'holy_bolt',  name: '신성한 빛줄기', ico: '✨', row: 1, col: 1, reqLv: 6,  req: [], desc: '신성한 빛의 투사체를 발사합니다.' },
+          { id: 'zeal',       name: '열의',          ico: '⚔️', row: 2, col: 0, reqLv: 12, req: ['sacrifice'], desc: '주변 적을 빠르게 연속 베기합니다.' },
+          { id: 'charge',     name: '돌진',          ico: '🏃', row: 2, col: 2, reqLv: 12, req: ['smite'], desc: '적을 향해 고속으로 돌진합니다.' },
+          { id: 'vengeance',  name: '복수',          ico: '🔥', row: 3, col: 0, reqLv: 18, req: ['zeal'], desc: '화염·냉기·번개 피해를 담아 공격합니다.' },
+          { id: 'hammer',     name: '축복받은 망치', ico: '🔨', row: 3, col: 1, reqLv: 18, req: ['holy_bolt'], desc: '나선형으로 회전하는 신성한 망치를 소환합니다.' },
+          { id: 'conversion', name: '전향',          ico: '🔄', row: 4, col: 0, reqLv: 24, req: ['vengeance'], desc: '적을 일시적으로 아군으로 만듭니다.' },
+          { id: 'holy_shield',name: '신성한 방패',   ico: '🔰', row: 4, col: 2, reqLv: 24, req: ['charge','hammer'], desc: '방패 방어력과 막기 확률을 대폭 높입니다.' },
+          { id: 'foh',        name: '천상의 주먹',   ico: '⚡', row: 5, col: 1, reqLv: 30, req: ['hammer','conversion'], desc: '하늘에서 번개를 내려치고 빛줄기를 퍼뜨립니다.' }
+        ]
+      }
+    };
+
+    let currentSkillTab = 'com';
+    function switchSkillTab(tab) {
+      currentSkillTab = tab;
+      ['def','off','com'].forEach(t => document.getElementById('stab_' + t).classList.toggle('active', t === tab));
+      renderSkillTree();
+    }
+
+    function getBonusAllSkills() {
+      let bonus = 0;
+      Object.values(me.equip).forEach(id => { if (ITEM_DB[id]?.allSkills) bonus += ITEM_DB[id].allSkills; });
+      return bonus;
+    }
+
+    function getEffectiveSkillLv(skillId) {
+      const pure = me.skills[skillId] || 0;
+      return pure > 0 ? pure + getBonusAllSkills() : 0;
+    }
+
+    function canLearnSkill(sk) {
+      const pure = me.skills[sk.id] || 0;
+      if (me.skillPoints <= 0 || pure >= MAX_PURE_SKILL || me.level < sk.reqLv) return false;
+      return sk.req.every(r => (me.skills[r] || 0) >= 1);
+    }
+
+    function renderSkillTree() {
+      const tree = PALADIN_TREES[currentSkillTab];
+      document.getElementById('skillTabTitle').textContent = `성기사 — ${tree.title}`;
+      document.getElementById('skillPtsVal').textContent = me.skillPoints;
+      const bonus = getBonusAllSkills();
+      document.getElementById('bonusSkillVal').textContent = `아이템 +${bonus}`;
+
+      const grid = document.getElementById('skillGrid');
+      grid.innerHTML = '';
+      for (let r = 0; r < 6; r++) {
+        for (let c = 0; c < 3; c++) {
+          const sk = tree.skills.find(s => s.row === r && s.col === c);
+          const cell = document.createElement('div');
+          if (!sk) { cell.className = 'skill-cell empty'; grid.appendChild(cell); continue; }
+
+          const pure = me.skills[sk.id] || 0;
+          const total = getEffectiveSkillLv(sk.id);
+          const learnable = canLearnSkill(sk);
+          const isActive = (me.activeSkill === sk.id || me.activeAura === sk.id);
+
+          cell.className = 'skill-cell ' + (pure > 0 ? 'learned' : (learnable ? 'available' : 'locked')) + (isActive ? ' active-sk' : '');
+          cell.innerHTML = `
+            <span class="sk-req">Lv.${sk.reqLv}</span>
+            <span class="sk-ico">${sk.ico}</span>
+            <span class="sk-nm">${sk.name}</span>
+            <span class="sk-lv ${total > pure ? 'boosted' : ''}">${total}</span>
+          `;
+          cell.onmouseenter = () => {
+            document.getElementById('skillDescBox').innerHTML =
+              `<strong style="color:#facc15;">${sk.name}</strong> (순수 ${pure}/${MAX_PURE_SKILL}${bonus && pure ? ` · 장비포함 ${total}` : ''})<br>${sk.desc}`;
+          };
+          cell.onclick = () => {
+            if (learnable) {
+              me.skills[sk.id] = pure + 1;
+              me.skillPoints--;
+              if (currentSkillTab === 'com') { me.activeSkill = sk.id; updateSkillHud(); }
+              else { me.activeAura = sk.id; }
+              addChat(`[스킬] ${sk.name} Lv.${me.skills[sk.id]} 습득!`, '#facc15');
+              renderSkillTree(); updateHud();
+            } else if (pure > 0) {
+              if (currentSkillTab === 'com') { me.activeSkill = sk.id; updateSkillHud(); addChat(`[장착] 주력 스킬: ${sk.name}`, '#60a5fa'); }
+              else { me.activeAura = sk.id; addChat(`[오라 활성] ${sk.name}`, '#4ade80'); }
+              renderSkillTree();
+            } else {
+              addChat(`[알림] 요구 레벨 Lv.${sk.reqLv} 및 선행 스킬/포인트가 필요합니다.`, '#f87171');
+            }
+          };
+          grid.appendChild(cell);
+        }
+      }
+    }
+
+    function updateSkillHud() {
+      const allCom = PALADIN_TREES.com.skills;
+      const sk = allCom.find(s => s.id === me.activeSkill);
+      if (me.classId === 'paladin' && sk) {
+        document.getElementById('leftSkillIcon').textContent = sk.ico;
+        document.getElementById('leftSkillName').textContent = sk.name.slice(0, 4);
+      } else {
+        const cls = CLASSES[me.classId];
+        document.getElementById('leftSkillIcon').textContent = cls.icon;
+        document.getElementById('leftSkillName').textContent = cls.skill.slice(0, 4);
+      }
+    }
+
+    // =========================================================
+    // 2. 게임 마스터 데이터 (아이템 +스킬 강화 포함)
     // =========================================================
     const CLASSES = {
-      sorceress: { name: '원소술사', icon: '❄️', skill: '프로즌 오브', color: '#38bdf8', robe: '#1d4ed8', skin: '#f5d0a9', hair: '#1e1b4b', startWpn: 'sorc_staff', baseHp: 90, baseMp: 100, dmg: 16, canTele: true },
-      paladin:   { name: '성기사',   icon: '🔨', skill: '블레시드 해머', color: '#facc15', robe: '#b45309', skin: '#d9a066', hair: '#1c1917', startWpn: 'short_sword', baseHp: 130, baseMp: 70, dmg: 18, canTele: false },
-      barbarian: { name: '야만용사', icon: '🪓', skill: '휠윈드',       color: '#f87171', robe: '#7f1d1d', skin: '#e5b887', hair: '#451a03', startWpn: 'battle_axe', baseHp: 160, baseMp: 50, dmg: 22, canTele: false },
-      amazon:    { name: '아마존',   icon: '🏹', skill: '멀티샷',       color: '#4ade80', robe: '#166534', skin: '#fde68a', hair: '#facc15', startWpn: 'hunter_bow', baseHp: 115, baseMp: 65, dmg: 17, canTele: false },
-      necromancer:{ name: '강령술사', icon: '💀', skill: '본 스피어',    color: '#cbd5e1', robe: '#334155', skin: '#e2e8f0', hair: '#f8fafc', startWpn: 'bone_wand', baseHp: 95, baseMp: 95, dmg: 17, canTele: false },
-      assassin:  { name: '암살자',   icon: '⚡', skill: '라이트닝 트랩', color: '#c084fc', robe: '#4c1d95', skin: '#f3d1b0', hair: '#0f172a', startWpn: 'katar', baseHp: 110, baseMp: 75, dmg: 19, canTele: false },
-      druid:     { name: '드루이드', icon: '🌪️', skill: '토네이도',     color: '#a3e635', robe: '#3f6212', skin: '#e6be9a', hair: '#9a3412', startWpn: 'oak_club', baseHp: 125, baseMp: 80, dmg: 17, canTele: false }
+      paladin:    { name: '성기사',   icon: '🔨', skill: '축복받은 망치', color: '#facc15', robe: '#b45309', skin: '#d9a066', hair: '#1c1917', startWpn: 'short_sword', baseHp: 130, baseMp: 70, dmg: 18, canTele: false },
+      sorceress:  { name: '원소술사', icon: '❄️', skill: '프로즌 오브',   color: '#38bdf8', robe: '#1d4ed8', skin: '#f5d0a9', hair: '#1e1b4b', startWpn: 'sorc_staff', baseHp: 90, baseMp: 100, dmg: 16, canTele: true },
+      barbarian:  { name: '야만용사', icon: '🪓', skill: '휠윈드',        color: '#f87171', robe: '#7f1d1d', skin: '#e5b887', hair: '#451a03', startWpn: 'battle_axe', baseHp: 160, baseMp: 50, dmg: 22, canTele: false },
+      amazon:     { name: '아마존',   icon: '🏹', skill: '멀티샷',        color: '#4ade80', robe: '#166534', skin: '#fde68a', hair: '#facc15', startWpn: 'hunter_bow', baseHp: 115, baseMp: 65, dmg: 17, canTele: false },
+      necromancer:{ name: '강령술사', icon: '💀', skill: '본 스피어',     color: '#cbd5e1', robe: '#334155', skin: '#e2e8f0', hair: '#f8fafc', startWpn: 'bone_wand', baseHp: 95, baseMp: 95, dmg: 17, canTele: false },
+      assassin:   { name: '암살자',   icon: '⚡', skill: '라이트닝 트랩', color: '#c084fc', robe: '#4c1d95', skin: '#f3d1b0', hair: '#0f172a', startWpn: 'katar', baseHp: 110, baseMp: 75, dmg: 19, canTele: false },
+      druid:      { name: '드루이드', icon: '🌪️', skill: '토네이도',      color: '#a3e635', robe: '#3f6212', skin: '#e6be9a', hair: '#9a3412', startWpn: 'oak_club', baseHp: 125, baseMp: 80, dmg: 17, canTele: false }
     };
 
     const ZONES = {
@@ -448,22 +689,22 @@
     };
 
     const ITEM_DB = {
-      short_sword:  { name: '숏 소드',        slot: 'weapon', rarity: 'normal', dmg: 6,  color: '#cbd5e1', shape: 'sword' },
-      sorc_staff:   { name: '오크 지팡이',    slot: 'weapon', rarity: 'normal', dmg: 7,  color: '#92400e', shape: 'staff' },
-      battle_axe:   { name: '배틀 액스',      slot: 'weapon', rarity: 'normal', dmg: 9,  color: '#94a3b8', shape: 'axe' },
-      hunter_bow:   { name: '헌터 보우',      slot: 'weapon', rarity: 'normal', dmg: 7,  color: '#a16207', shape: 'bow' },
-      bone_wand:    { name: '본 완드',        slot: 'weapon', rarity: 'normal', dmg: 7,  color: '#f1f5f9', shape: 'staff' },
-      katar:        { name: '카타르',         slot: 'weapon', rarity: 'normal', dmg: 8,  color: '#94a3b8', shape: 'sword' },
-      oak_club:     { name: '오크 클럽',      slot: 'weapon', rarity: 'normal', dmg: 8,  color: '#78350f', shape: 'axe' },
-      crystal_sword:{ name: '스피리트 크리스탈 소드', slot: 'weapon', rarity: 'magic', dmg: 18, color: '#38bdf8', shape: 'sword' },
-      hoto_flail:   { name: '오크의 심장 (룬워드)', slot: 'weapon', rarity: 'unique', dmg: 34, color: '#facc15', shape: 'staff' },
+      short_sword:  { name: '숏 소드', slot: 'weapon', rarity: 'normal', dmg: 6, color: '#cbd5e1', shape: 'sword' },
+      sorc_staff:   { name: '오크 지팡이', slot: 'weapon', rarity: 'normal', dmg: 7, color: '#92400e', shape: 'staff' },
+      battle_axe:   { name: '배틀 액스', slot: 'weapon', rarity: 'normal', dmg: 9, color: '#94a3b8', shape: 'axe' },
+      hunter_bow:   { name: '헌터 보우', slot: 'weapon', rarity: 'normal', dmg: 7, color: '#a16207', shape: 'bow' },
+      bone_wand:    { name: '본 완드', slot: 'weapon', rarity: 'normal', dmg: 7, color: '#f1f5f9', shape: 'staff' },
+      katar:        { name: '카타르', slot: 'weapon', rarity: 'normal', dmg: 8, color: '#94a3b8', shape: 'sword' },
+      oak_club:     { name: '오크 클럽', slot: 'weapon', rarity: 'normal', dmg: 8, color: '#78350f', shape: 'axe' },
+      crystal_sword:{ name: '스피리트 소드 (+2스킬)', slot: 'weapon', rarity: 'magic', dmg: 18, allSkills: 2, color: '#38bdf8', shape: 'sword' },
+      hoto_flail:   { name: '오크의 심장 (+3스킬)', slot: 'weapon', rarity: 'unique', dmg: 34, allSkills: 3, color: '#facc15', shape: 'staff' },
       grief_blade:  { name: '슬픔 페이즈 블레이드', slot: 'weapon', rarity: 'unique', dmg: 46, color: '#67e8f9', shape: 'sword' },
-      windforce:    { name: '윈드포스 하이드라 보우', slot: 'weapon', rarity: 'unique', dmg: 42, color: '#f59e0b', shape: 'bow' },
-      monarch:      { name: '모너크 스피리트 방패', slot: 'shield', rarity: 'magic', def: 15, color: '#60a5fa' },
+      windforce:    { name: '윈드포스 보우', slot: 'weapon', rarity: 'unique', dmg: 42, color: '#f59e0b', shape: 'bow' },
+      monarch:      { name: '모너크 스피리트 (+2스킬)', slot: 'shield', rarity: 'magic', def: 15, allSkills: 2, color: '#60a5fa' },
       stormshield:  { name: '스톰실드 (유니크)', slot: 'shield', rarity: 'unique', def: 30, color: '#d4af37' },
-      shako:        { name: '할리퀸 관모 (샤코)', slot: 'helm', rarity: 'unique', def: 20, hp: 50, color: '#22c55e' },
-      andariel_helm:{ name: '안다리엘의 두개골', slot: 'helm', rarity: 'unique', def: 25, dmg: 10, color: '#e2e8f0' },
-      enigma:       { name: '수수께끼 메이지 플레이트 (텔포)', slot: 'armor', rarity: 'unique', def: 45, hp: 80, tele: true, color: '#a855f7' },
+      shako:        { name: '할리퀸 관모 샤코 (+2스킬)', slot: 'helm', rarity: 'unique', def: 20, hp: 50, allSkills: 2, color: '#22c55e' },
+      andariel_helm:{ name: '안다리엘 두개골 (+2스킬)', slot: 'helm', rarity: 'unique', def: 25, dmg: 10, allSkills: 2, color: '#e2e8f0' },
+      enigma:       { name: '수수께끼 갑옷 (+2스킬/텔포)', slot: 'armor', rarity: 'unique', def: 45, hp: 80, allSkills: 2, tele: true, color: '#a855f7' },
       tal_armor:    { name: '탈 라샤의 갑옷', slot: 'armor', rarity: 'rare', def: 30, hp: 40, color: '#c084fc' },
       jah_rune:     { name: '자(Jah) 룬', slot: 'rune', rarity: 'rune', color: '#fb923c' },
       ber_rune:     { name: '베르(Ber) 룬', slot: 'rune', rarity: 'rune', color: '#fb923c' }
@@ -471,7 +712,7 @@
     const DROP_POOL = ['crystal_sword', 'monarch', 'shako', 'tal_armor', 'hoto_flail', 'grief_blade', 'windforce', 'stormshield', 'andariel_helm', 'jah_rune', 'ber_rune'];
 
     // =========================================================
-    // 2. 액트 1~5 도트 마을 배경 렌더링 엔진
+    // 3. 마을 배경 & 도트 캐릭터 렌더링
     // =========================================================
     function drawLabel(c, x, y, text, color = '#f5d89c') {
       c.font = 'bold 11px "Malgun Gothic", sans-serif';
@@ -479,8 +720,7 @@
       c.fillStyle = 'rgba(0,0,0,0.75)';
       const w = c.measureText(text).width + 10;
       c.fillRect(x - w / 2, y - 12, w, 15);
-      c.fillStyle = color;
-      c.fillText(text, x, y);
+      c.fillStyle = color; c.fillText(text, x, y);
     }
 
     function drawFire(c, x, y, t, scale = 1) {
@@ -490,17 +730,14 @@
       c.fillStyle = '#451a03'; c.fillRect(x - 14 * scale, y + 4 * scale, 28 * scale, 8 * scale);
       c.fillStyle = '#ea580c'; c.fillRect(x - 10 * scale, y - 10 * scale - f, 20 * scale, 18 * scale + f);
       c.fillStyle = '#facc15'; c.fillRect(x - 6 * scale, y - 6 * scale - f * 0.6, 12 * scale, 12 * scale);
-      c.fillStyle = '#fef9c3'; c.fillRect(x - 3 * scale, y - 2 * scale, 6 * scale, 6 * scale);
     }
 
     function drawTownScenery(c, zoneId, t) {
-      // 공통 사냥터 출구 포탈 (우측 상단 1120, 420)
       c.fillStyle = 'rgba(239, 68, 68, 0.28)';
       c.beginPath(); c.ellipse(1120, 420, 38, 22, 0, 0, Math.PI * 2); c.fill();
       c.strokeStyle = '#f87171'; c.lineWidth = 2; c.stroke();
       drawLabel(c, 1120, 390, '⚔️ 사냥터 입구 (클릭)', '#fca5a5');
 
-      // 공통 웨이포인트 (800, 470)
       c.fillStyle = '#292524'; c.fillRect(756, 444, 88, 52);
       c.strokeStyle = '#38bdf8'; c.lineWidth = 3;
       c.beginPath(); c.ellipse(800, 470, 32, 16, 0, 0, Math.PI * 2); c.stroke();
@@ -508,120 +745,42 @@
       drawLabel(c, 800, 438, '🌀 웨이포인트 (W)', '#bae6fd');
 
       if (zoneId === 'act1_town') {
-        // Act 1: 로그 캠프 (나무 방책 + 모닥불 + 찰시 대장간 + 아카라 천막 + 마차)
         c.fillStyle = '#3f2e1e';
-        for (let x = 360; x <= 1240; x += 24) {
-          c.fillRect(x, 260, 18, 34);
-          c.fillRect(x, 890, 18, 34);
-        }
-        for (let y = 260; y <= 900; y += 24) {
-          c.fillRect(360, y, 20, 20);
-          c.fillRect(1220, y, 20, 20);
-        }
-        // 중앙 모닥불 & 보관함
+        for (let x = 360; x <= 1240; x += 24) { c.fillRect(x, 260, 18, 34); c.fillRect(x, 890, 18, 34); }
+        for (let y = 260; y <= 900; y += 24) { c.fillRect(360, y, 20, 20); c.fillRect(1220, y, 20, 20); }
         drawFire(c, 800, 620, t, 1.1);
         drawLabel(c, 800, 660, '🔥 로그 캠프 모닥불', '#fdba74');
-        c.fillStyle = '#78350f'; c.fillRect(855, 600, 26, 20);
-        c.strokeStyle = '#d4af37'; c.lineWidth = 2; c.strokeRect(855, 600, 26, 20);
-        drawLabel(c, 868, 594, '📦 보관함', '#fde047');
-
-        // 찰시 대장간 (좌상단)
         c.fillStyle = '#44403c'; c.fillRect(500, 430, 120, 80);
-        c.fillStyle = '#1c1917'; c.fillRect(512, 442, 44, 34);
-        drawFire(c, 534, 462, t, 0.7);
-        c.fillStyle = '#94a3b8'; c.fillRect(574, 468, 24, 14);
-        drawLabel(c, 560, 422, '⚒️ 찰시의 대장간', '#fca5a5');
-
-        // 아카라 천막 (우하단)
+        drawFire(c, 534, 462, t, 0.7); drawLabel(c, 560, 422, '⚒️ 찰시의 대장간', '#fca5a5');
         c.fillStyle = '#4c1d95'; c.fillRect(960, 620, 110, 74);
-        c.fillStyle = '#6d28d9'; c.fillRect(970, 610, 90, 24);
-        c.fillStyle = '#1e1b4b'; c.fillRect(1000, 654, 30, 40);
         drawLabel(c, 1015, 604, '🧪 아카라의 천막', '#d8b4fe');
-
-        // 낡은 마차 (좌하단)
         c.fillStyle = '#a8a29e'; c.fillRect(520, 700, 90, 48);
-        c.fillStyle = '#78350f'; c.fillRect(515, 742, 100, 12);
-        c.fillStyle = '#292524'; c.fillRect(530, 750, 16, 16); c.fillRect(584, 750, 16, 16);
         drawLabel(c, 565, 692, '🐴 와리브의 마차', '#e7e5e4');
-      }
-      else if (zoneId === 'act2_town') {
-        // Act 2: 루트 골레인 (사막 궁전 + 중앙 오아시스 + 야자수 + 상인 천막)
+      } else if (zoneId === 'act2_town') {
         c.fillStyle = '#b48a4e'; c.fillRect(620, 240, 360, 120);
-        c.fillStyle = '#d4af37'; c.beginPath(); c.arc(800, 260, 54, Math.PI, 0); c.fill();
-        c.fillStyle = '#291e12'; c.fillRect(775, 300, 50, 60);
         drawLabel(c, 800, 232, '🏰 루트 골레인 궁전', '#fde047');
-
-        // 중앙 오아시스 분수
-        c.fillStyle = '#d6c3a5'; c.beginPath(); c.ellipse(800, 640, 74, 44, 0, 0, Math.PI * 2); c.fill();
         c.fillStyle = '#0284c7'; c.beginPath(); c.ellipse(800, 640, 60, 34, 0, 0, Math.PI * 2); c.fill();
-        c.fillStyle = '#7dd3fc'; c.beginPath(); c.ellipse(800, 640, 26 + Math.sin(t * 0.1) * 4, 14, 0, 0, Math.PI * 2); c.fill();
         drawLabel(c, 800, 696, '💧 오아시스 분수', '#7dd3fc');
-
-        // 야자수 4그루
-        [[520, 500], [1080, 520], [540, 760], [1060, 760]].forEach(([px, py]) => {
-          c.fillStyle = '#78350f'; c.fillRect(px - 5, py, 10, 44);
-          c.fillStyle = '#15803d'; c.fillRect(px - 26, py - 12, 52, 14);
-          c.fillStyle = '#22c55e'; c.fillRect(px - 18, py - 20, 36, 12);
-        });
-        // 파라의 대장간 천막
-        c.fillStyle = '#b91c1c'; c.fillRect(500, 600, 100, 60);
-        drawLabel(c, 550, 592, '⚔️ 파라의 상점', '#fca5a5');
-      }
-      else if (zoneId === 'act3_town') {
-        // Act 3: 쿠라스트 부두 (늪지대 물 + 나무 부두 + 횃불)
+      } else if (zoneId === 'act3_town') {
         c.fillStyle = '#0c1f1a'; c.fillRect(0, 0, MAP_W, 380); c.fillRect(0, 820, MAP_W, 400);
-        // 중앙 나무 부두 데크
         c.fillStyle = '#5c4028'; c.fillRect(460, 400, 680, 400);
-        c.strokeStyle = '#3b2616'; c.lineWidth = 2;
-        for (let y = 400; y <= 800; y += 20) { c.beginPath(); c.moveTo(460, y); c.lineTo(1140, y); c.stroke(); }
-        // 부두 횃불 4개
         [[500, 440], [1100, 440], [500, 760], [1100, 760]].forEach(([fx, fy]) => drawFire(c, fx, fy, t, 0.75));
-        // 오르무스 오두막
-        c.fillStyle = '#3f6212'; c.fillRect(540, 560, 110, 80);
-        drawLabel(c, 595, 552, '🌿 오르무스의 오두막', '#bef264');
         drawLabel(c, 800, 630, '🛶 쿠라스트 부두 중앙', '#fde047');
-      }
-      else if (zoneId === 'act4_town') {
-        // Act 4: 혼돈의 요새 (외곽 용암 + 흑요석 광장 + 석주 + 대천사 티리엘)
+      } else if (zoneId === 'act4_town') {
         c.fillStyle = '#991b1b'; c.fillRect(0, 0, MAP_W, 280); c.fillRect(0, 920, MAP_W, 300);
-        c.fillStyle = '#ea580c'; c.fillRect(0, 250, MAP_W, 24); c.fillRect(0, 920, MAP_W, 24);
-        // 석주 4개
-        [[540, 420], [1060, 420], [540, 780], [1060, 780]].forEach(([px, py]) => {
-          c.fillStyle = '#44403c'; c.fillRect(px - 16, py - 40, 32, 70);
-          c.fillStyle = '#78716c'; c.fillRect(px - 20, py - 46, 40, 10);
-          drawFire(c, px, py - 52, t, 0.65);
-        });
-        // 대천사 티리엘 (빛나는 날개)
-        const wing = Math.sin(t * 0.12) * 4;
-        c.fillStyle = 'rgba(186, 230, 253, 0.45)';
-        c.fillRect(760 - wing, 575, 28, 36); c.fillRect(812 + wing, 575, 28, 36);
         c.fillStyle = '#e0f2fe'; c.fillRect(792, 580, 16, 30);
-        c.fillStyle = '#facc15'; c.fillRect(794, 570, 12, 10);
         drawLabel(c, 800, 560, '👼 대천사 티리엘', '#7dd3fc');
-      }
-      else if (zoneId === 'act5_town') {
-        // Act 5: 하로가스 (설원 + 북방 목조 성벽 + 화로 + 라주크 대장간)
+      } else if (zoneId === 'act5_town') {
         c.fillStyle = '#64748b'; c.fillRect(400, 280, 800, 28); c.fillRect(400, 880, 800, 28);
-        c.fillStyle = '#cbd5e1'; c.fillRect(400, 276, 800, 8);
-        // 화로 4개
         [[600, 500], [1000, 500], [600, 720], [1000, 720]].forEach(([fx, fy]) => drawFire(c, fx, fy, t, 0.9));
-        // 라주크 대장간
-        c.fillStyle = '#334155'; c.fillRect(500, 570, 120, 80);
-        c.fillStyle = '#e2e8f0'; c.fillRect(500, 564, 120, 12);
         drawLabel(c, 560, 556, '🔨 라주크의 대장간', '#93c5fd');
-        // 말라의 집
-        c.fillStyle = '#475569'; c.fillRect(980, 570, 110, 80);
-        c.fillStyle = '#f1f5f9'; c.fillRect(980, 564, 110, 12);
-        drawLabel(c, 1035, 556, '❄️ 말라의 치료소', '#bae6fd');
       }
     }
 
-    // 날씨 효과 (Act 1 비, Act 5 눈)
     const weatherDrops = Array.from({ length: 65 }, () => ({ x: Math.random() * 1400, y: Math.random() * 900, sp: 3 + Math.random() * 4 }));
     function drawWeather(c, zoneId) {
       if (zoneId === 'act1_town') {
-        c.strokeStyle = 'rgba(148, 163, 184, 0.32)';
-        c.lineWidth = 1;
+        c.strokeStyle = 'rgba(148, 163, 184, 0.32)'; c.lineWidth = 1;
         weatherDrops.forEach(d => {
           d.y += d.sp * 2.2; d.x -= d.sp * 0.5;
           if (d.y > canvas.height) { d.y = -10; d.x = Math.random() * canvas.width; }
@@ -637,28 +796,21 @@
       }
     }
 
-    // =========================================================
-    // 3. 파츠 분리 도트 캐릭터 렌더링
-    // =========================================================
     function drawPixelCharacter(c, x, y, clsId, equip, dir, walkFrame, swingTimer, isMe, name, lv) {
-      const cls = CLASSES[clsId] || CLASSES.sorceress;
+      const cls = CLASSES[clsId] || CLASSES.paladin;
       const facingLeft = Math.cos(dir) < 0;
       const bob = walkFrame ? -2 : 0;
 
-      c.save();
-      c.translate(Math.round(x), Math.round(y));
-
+      c.save(); c.translate(Math.round(x), Math.round(y));
       c.fillStyle = 'rgba(0,0,0,0.5)';
       c.beginPath(); c.ellipse(0, 14, 14, 6, 0, 0, Math.PI * 2); c.fill();
       if (isMe) {
-        c.strokeStyle = 'rgba(250, 204, 21, 0.55)';
-        c.lineWidth = 1.5;
-        c.beginPath(); c.ellipse(0, 14, 17, 7.5, 0, 0, Math.PI * 2); c.stroke();
+        c.strokeStyle = me.activeAura ? 'rgba(56, 189, 248, 0.75)' : 'rgba(250, 204, 21, 0.55)';
+        c.lineWidth = 2;
+        c.beginPath(); c.ellipse(0, 14, 19, 8.5, 0, 0, Math.PI * 2); c.stroke();
       }
 
-      c.save();
-      if (facingLeft) c.scale(-1, 1);
-
+      c.save(); if (facingLeft) c.scale(-1, 1);
       const armorColor = (equip?.armor && ITEM_DB[equip.armor]) ? ITEM_DB[equip.armor].color : cls.robe;
       const helmItem = (equip?.helm && ITEM_DB[equip.helm]) ? ITEM_DB[equip.helm] : null;
       const shieldItem = (equip?.shield && ITEM_DB[equip.shield]) ? ITEM_DB[equip.shield] : null;
@@ -667,51 +819,26 @@
       const legOff = walkFrame ? 2 : 0;
       c.fillStyle = '#18181b'; c.fillRect(-6, 6 + legOff, 5, 8); c.fillRect(1, 6 - legOff, 5, 8);
       c.fillStyle = '#44403c'; c.fillRect(-5, 7 + legOff, 3, 6); c.fillRect(2, 7 - legOff, 3, 6);
-
       c.fillStyle = '#111'; c.fillRect(-9, -8 + bob, 18, 16);
       c.fillStyle = armorColor; c.fillRect(-7, -6 + bob, 14, 12);
       c.fillStyle = '#d97706'; c.fillRect(-7, 2 + bob, 14, 2);
-
       c.fillStyle = '#111'; c.fillRect(-7, -20 + bob, 14, 13);
       c.fillStyle = cls.skin; c.fillRect(-5, -18 + bob, 10, 10);
       c.fillStyle = '#0f172a'; c.fillRect(1, -15 + bob, 2, 2); c.fillRect(-3, -15 + bob, 2, 2);
 
-      if (helmItem) {
-        c.fillStyle = '#111'; c.fillRect(-8, -23 + bob, 16, 7);
-        c.fillStyle = helmItem.color; c.fillRect(-6, -21 + bob, 12, 5);
-      } else {
-        c.fillStyle = cls.hair; c.fillRect(-6, -20 + bob, 12, 4);
-      }
+      if (helmItem) { c.fillStyle = '#111'; c.fillRect(-8, -23 + bob, 16, 7); c.fillStyle = helmItem.color; c.fillRect(-6, -21 + bob, 12, 5); }
+      else { c.fillStyle = cls.hair; c.fillRect(-6, -20 + bob, 12, 4); }
+      if (shieldItem) { c.fillStyle = '#111'; c.fillRect(-14, -6 + bob, 8, 12); c.fillStyle = shieldItem.color; c.fillRect(-13, -5 + bob, 6, 10); }
 
-      if (shieldItem) {
-        c.fillStyle = '#111'; c.fillRect(-14, -6 + bob, 8, 12);
-        c.fillStyle = shieldItem.color; c.fillRect(-13, -5 + bob, 6, 10);
-        c.fillStyle = '#fff'; c.fillRect(-11, -2 + bob, 2, 4);
-      }
-
-      c.save();
-      c.translate(8, -2 + bob);
+      c.save(); c.translate(8, -2 + bob);
       c.rotate(swingTimer > 0 ? (-1.2 + (10 - swingTimer) * 0.25) : -0.35);
       c.fillStyle = '#111';
-      if (wpnItem.shape === 'staff') {
-        c.fillRect(-2, -20, 5, 26); c.fillStyle = wpnItem.color; c.fillRect(-1, -19, 3, 24);
-        c.fillStyle = '#fef08a'; c.fillRect(-2, -22, 5, 5);
-      } else if (wpnItem.shape === 'axe') {
-        c.fillRect(-1, -16, 4, 20); c.fillStyle = '#78350f'; c.fillRect(0, -15, 2, 18);
-        c.fillStyle = wpnItem.color; c.fillRect(1, -16, 8, 9);
-      } else if (wpnItem.shape === 'bow') {
-        c.fillStyle = wpnItem.color; c.fillRect(0, -14, 3, 28);
-        c.fillStyle = '#e2e8f0'; c.fillRect(-2, -12, 1, 24);
-      } else {
-        c.fillRect(-2, -18, 5, 20); c.fillStyle = wpnItem.color; c.fillRect(-1, -17, 3, 17);
-        c.fillStyle = '#d4af37'; c.fillRect(-4, -1, 9, 3);
-      }
-      c.restore();
-      c.restore();
+      c.fillRect(-2, -18, 5, 20); c.fillStyle = wpnItem.color; c.fillRect(-1, -17, 3, 17);
+      c.fillStyle = '#d4af37'; c.fillRect(-4, -1, 9, 3);
+      c.restore(); c.restore();
 
       if (name) {
-        c.font = 'bold 11px "Malgun Gothic", sans-serif';
-        c.textAlign = 'center';
+        c.font = 'bold 11px "Malgun Gothic", sans-serif'; c.textAlign = 'center';
         c.fillStyle = '#000'; c.fillText(`${name} (Lv.${lv})`, 1, -28 + bob);
         c.fillStyle = isMe ? '#fde047' : '#e2e8f0'; c.fillText(`${name} (Lv.${lv})`, 0, -29 + bob);
       }
@@ -719,9 +846,9 @@
     }
 
     // =========================================================
-    // 4. 직업 선택 & 게임 루프
+    // 4. 직업 선택 & 게임 상태
     // =========================================================
-    let selectedClass = 'sorceress';
+    let selectedClass = 'paladin';
     const classGrid = document.getElementById('classGrid');
     Object.entries(CLASSES).forEach(([id, cls]) => {
       const card = document.createElement('div');
@@ -741,17 +868,17 @@
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-    window.addEventListener('resize', resize);
-    resize();
+    window.addEventListener('resize', resize); resize();
 
     let ws = null, wsConnected = false, started = false, currentZone = 'act1_town', myId = null;
     const me = {
-      name: '', classId: 'sorceress', level: 1, exp: 0, maxExp: 100, gold: 0,
+      name: '', classId: 'paladin', level: 1, exp: 0, maxExp: 100, gold: 0,
+      skillPoints: 1, skills: {}, activeSkill: null, activeAura: null,
       x: 800, y: 560, targetX: null, targetY: null, dir: 0, speed: 3.4,
-      hp: 100, maxHp: 100, mp: 100, maxMp: 100,
+      hp: 130, maxHp: 130, mp: 70, maxMp: 70,
       hpPot: 5, mpPot: 5, fullPot: 2, swing: 0, cd: 0,
-      equip: { weapon: 'sorc_staff', armor: 'none', helm: 'none', shield: 'none' },
-      inventory: ['enigma', 'shako', 'crystal_sword']
+      equip: { weapon: 'short_sword', armor: 'none', helm: 'none', shield: 'none' },
+      inventory: ['enigma', 'shako', 'crystal_sword', 'monarch']
     };
 
     const otherPlayers = new Map();
@@ -772,7 +899,8 @@
         else if (msg.t === 'zone_init') {
           myId = msg.me.id;
           if (msg.save) {
-            me.level = msg.save.level || 1; me.exp = msg.save.exp || 0; me.gold = msg.save.gold || 0;
+            me.level = Math.min(MAX_LEVEL, msg.save.level || 1);
+            me.exp = msg.save.exp || 0; me.gold = msg.save.gold || 0;
             if (msg.save.equip) me.equip = msg.save.equip;
             if (Array.isArray(msg.save.inventory)) me.inventory = msg.save.inventory;
             const st = getMyStats(); me.maxHp = st.maxHp; me.hp = st.maxHp; me.maxMp = st.maxMp; me.mp = st.maxMp;
@@ -808,13 +936,11 @@
     function updateOnlineCount() { if (wsConnected) document.getElementById('netStatus').innerHTML = `<span style="color:#4ade80;">● KIABLO 온라인</span> · 현재 맵 ${otherPlayers.size + 1}명`; }
 
     function enterZone(zoneId, spawnX = 800, spawnY = 560) {
-      currentZone = zoneId;
-      const z = ZONES[zoneId];
+      currentZone = zoneId; const z = ZONES[zoneId];
       me.x = spawnX; me.y = spawnY; me.targetX = null; me.targetY = null;
       monsters = []; projectiles = []; loots = []; portals = []; activeTarget = null;
       document.getElementById('zoneName').textContent = z.name;
       document.getElementById('targetBarWrap').style.display = 'none';
-
       if (z.safe) {
         me.hp = me.maxHp; me.mp = me.maxMp;
         addChat(`[KIABLO] ${z.name} 도착! 체력/마나가 회복되었습니다.`, '#4ade80');
@@ -822,9 +948,9 @@
         for (let i = 0; i < 14; i++) {
           const mx = 200 + Math.random() * (MAP_W - 400), my = 200 + Math.random() * (MAP_H - 400);
           if (Math.hypot(mx - me.x, my - me.y) < 180) continue;
-          monsters.push({ name: z.mob, isBoss: false, x: mx, y: my, r: 16, hp: z.mobHp, maxHp: z.mobHp, spd: 1.3 + z.act * 0.15, dmg: 4 + z.act * 3, color: z.mobColor, exp: 25 * z.act, hit: 0 });
+          monsters.push({ name: z.mob, isBoss: false, x: mx, y: my, r: 16, hp: z.mobHp, maxHp: z.mobHp, spd: 1.3 + z.act * 0.15, dmg: 4 + z.act * 3, color: z.mobColor, exp: 35 * z.act, hit: 0 });
         }
-        monsters.push({ name: z.boss, isBoss: true, x: MAP_W - 320, y: 320, r: 28, hp: z.bossHp, maxHp: z.bossHp, spd: 1.5 + z.act * 0.12, dmg: 12 + z.act * 5, color: z.bossColor, exp: 250 * z.act, hit: 0 });
+        monsters.push({ name: z.boss, isBoss: true, x: MAP_W - 320, y: 320, r: 28, hp: z.bossHp, maxHp: z.bossHp, spd: 1.5 + z.act * 0.12, dmg: 12 + z.act * 5, color: z.bossColor, exp: 280 * z.act, hit: 0 });
         addChat(`[경고] ${z.name} 진입! 북동쪽에 보스 [${z.boss}] 출몰!`, '#f87171');
       }
       sendNet({ t: 'warp', zone: zoneId, x: me.x, y: me.y });
@@ -846,17 +972,24 @@
         const it = ITEM_DB[itemId]; if (!it) return;
         if (it.dmg) dmg += it.dmg; if (it.def) def += it.def; if (it.hp) bonusHp += it.hp; if (it.tele) canTele = true;
       });
-      return { dmg, def, maxHp: cls.baseHp + (me.level - 1) * 18 + bonusHp, maxMp: cls.baseMp + (me.level - 1) * 12, canTele };
+      // 성기사 오라/스킬 보너스 반영
+      if (me.activeAura === 'might') dmg += getEffectiveSkillLv('might') * 3;
+      if (me.activeAura === 'conc') dmg += getEffectiveSkillLv('conc') * 5;
+      if (me.activeAura === 'fanaticism') dmg += getEffectiveSkillLv('fanaticism') * 6;
+      if (me.activeAura === 'defiance') def += getEffectiveSkillLv('defiance') * 5;
+      if (me.activeSkill) dmg += getEffectiveSkillLv(me.activeSkill) * 4;
+      const moveSpd = 3.4 + (me.activeAura === 'vigor' ? Math.min(2.2, getEffectiveSkillLv('vigor') * 0.15) : 0);
+      return { dmg, def, moveSpd, maxHp: cls.baseHp + (me.level - 1) * 18 + bonusHp, maxMp: cls.baseMp + (me.level - 1) * 12, canTele };
     }
 
     function spawnSkillProjectile(sx, sy, tx, ty, clsId, isMine) {
-      const cls = CLASSES[clsId] || CLASSES.sorceress;
+      const cls = CLASSES[clsId] || CLASSES.paladin;
       const baseAngle = Math.atan2(ty - sy, tx - sx);
       const stats = isMine ? getMyStats() : { dmg: 10 };
-      if (clsId === 'amazon') {
+      if (clsId === 'paladin' && (!me.activeSkill || me.activeSkill === 'hammer')) {
+        projectiles.push({ x: sx, y: sy, angle: 0, dist: 14, cx: sx, cy: sy, spiral: true, life: 70, color: '#facc15', r: 9, dmg: stats.dmg * 1.2, isMine });
+      } else if (clsId === 'amazon') {
         [-0.22, -0.11, 0, 0.11, 0.22].forEach(off => { const a = baseAngle + off; projectiles.push({ x: sx, y: sy, vx: Math.cos(a) * 9, vy: Math.sin(a) * 9, life: 42, color: cls.color, r: 5, dmg: stats.dmg, isMine }); });
-      } else if (clsId === 'paladin') {
-        projectiles.push({ x: sx, y: sy, angle: 0, dist: 14, cx: sx, cy: sy, spiral: true, life: 70, color: cls.color, r: 9, dmg: stats.dmg * 1.2, isMine });
       } else if (clsId === 'barbarian') {
         for (let i = 0; i < 8; i++) { const a = (Math.PI * 2 / 8) * i; projectiles.push({ x: sx, y: sy, vx: Math.cos(a) * 6, vy: Math.sin(a) * 6, life: 16, color: cls.color, r: 10, dmg: stats.dmg * 1.3, isMine }); }
       } else {
@@ -910,12 +1043,18 @@
       for (let i = 0; i < count; i++) particles.push({ x, y, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6, life: 18 + Math.random() * 10, color, s: 3 + Math.random() * 3 });
     }
 
-    function openModal(id) { if (id === 'invModal') renderInventory(); if (id === 'wpModal') renderWaypoints(); document.getElementById(id).classList.remove('hidden'); }
+    const MODAL_IDS = ['skillModal', 'invModal', 'wpModal', 'escModal'];
+    function openModal(id) {
+      if (id === 'invModal') renderInventory();
+      if (id === 'wpModal') renderWaypoints();
+      if (id === 'skillModal') renderSkillTree();
+      document.getElementById(id).classList.remove('hidden');
+    }
     function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
     function renderInventory() {
       const st = getMyStats(); me.maxHp = st.maxHp; me.maxMp = st.maxMp;
-      document.getElementById('statSummary').textContent = `공격력: ${st.dmg} | 방어력: ${st.def} | 최대체력: ${st.maxHp} | 텔레포트: ${st.canTele ? '가능 ⚡' : '불가'}`;
+      document.getElementById('statSummary').textContent = `공격력: ${st.dmg} | 방어력: ${st.def} | 모든 스킬 +${getBonusAllSkills()} | 텔포: ${st.canTele ? '가능 ⚡' : '불가'}`;
       const slots = [['weapon', '무기'], ['shield', '방패'], ['helm', '투구'], ['armor', '갑옷']];
       document.getElementById('equipGrid').innerHTML = slots.map(([s, label]) => {
         const it = ITEM_DB[me.equip[s]];
@@ -959,7 +1098,7 @@
       document.getElementById('mpText').textContent = `${Math.ceil(me.mp)}/${me.maxMp}`;
       document.getElementById('lvlText').textContent = `Lv.${me.level}`;
       document.getElementById('goldText').textContent = `${me.gold.toLocaleString()} G`;
-      document.getElementById('expBarFill').style.width = `${Math.min(100, (me.exp / me.maxExp) * 100)}%`;
+      document.getElementById('expBarFill').style.width = `${me.level >= MAX_LEVEL ? 100 : Math.min(100, (me.exp / me.maxExp) * 100)}%`;
       document.getElementById('hpPotCnt').textContent = me.hpPot;
       document.getElementById('mpPotCnt').textContent = me.mpPot;
       document.getElementById('fullPotCnt').textContent = me.fullPot;
@@ -969,6 +1108,19 @@
     window.addEventListener('keydown', (e) => {
       if (!started) return;
       const chatIn = document.getElementById('chatInput');
+
+      // ESC 키: 열린 모달 닫기 -> 없으면 게임 종료 메뉴 열기
+      if (e.key === 'Escape') {
+        if (!chatIn.classList.contains('hidden')) { chatIn.classList.add('hidden'); return; }
+        let closedAny = false;
+        MODAL_IDS.forEach(id => {
+          const el = document.getElementById(id);
+          if (!el.classList.contains('hidden')) { el.classList.add('hidden'); closedAny = true; }
+        });
+        if (!closedAny) openModal('escModal');
+        return;
+      }
+
       if (e.key === 'Enter') {
         if (chatIn.classList.contains('hidden')) { chatIn.classList.remove('hidden'); chatIn.focus(); }
         else { const v = chatIn.value.trim(); if (v) sendNet({ t: 'chat', txt: v }); chatIn.value = ''; chatIn.classList.add('hidden'); }
@@ -977,8 +1129,12 @@
       if (!chatIn.classList.contains('hidden')) return;
       const k = e.key.toLowerCase(); keys[k] = true;
       if (k === '1') usePotion('hp'); if (k === '2') usePotion('mp'); if (k === '3') usePotion('full');
-      if (k === '4' || k === 'p') castTownPortal(); if (k === 'i') openModal('invModal'); if (k === 'w') openModal('wpModal');
-      if (k === 't') castTeleport(mouseWorld.x, mouseWorld.y); if (k === ' ') castPrimarySkill(mouseWorld.x, mouseWorld.y);
+      if (k === '4' || k === 'p') castTownPortal();
+      if (k === 't') { const el = document.getElementById('skillModal'); if (el.classList.contains('hidden')) openModal('skillModal'); else closeModal('skillModal'); }
+      if (k === 'i') { const el = document.getElementById('invModal'); if (el.classList.contains('hidden')) openModal('invModal'); else closeModal('invModal'); }
+      if (k === 'w') openModal('wpModal');
+      if (k === 'r') castTeleport(mouseWorld.x, mouseWorld.y);
+      if (k === ' ') castPrimarySkill(mouseWorld.x, mouseWorld.y);
       if (k === 'e' || k === 'f') pickupNearestLoot();
     });
     window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
@@ -991,7 +1147,6 @@
       mouseWorld.x = wx; mouseWorld.y = wy;
       if (e.button === 2) { castTeleport(wx, wy); return; }
 
-      // 마을 사냥터 입구 클릭 시 즉시 입장
       const z = ZONES[currentZone];
       if (z.safe && z.next && Math.hypot(wx - 1120, wy - 420) < 46) { enterZone(z.next, 350, 900); return; }
       if (z.safe && Math.hypot(wx - 800, wy - 470) < 42) { openModal('wpModal'); return; }
@@ -1013,11 +1168,20 @@
     function update() {
       if (!started) return;
       tick++; if (me.swing > 0) me.swing--; if (me.cd > 0) me.cd--;
-      if (tick % 30 === 0) { me.mp = Math.min(me.maxMp, me.mp + 2); if (ZONES[currentZone].safe) me.hp = Math.min(me.maxHp, me.hp + 5); updateHud(); }
+      if (tick % 30 === 0) {
+        const mpRegen = 2 + (me.activeAura === 'meditation' ? getEffectiveSkillLv('meditation') * 2 : 0);
+        me.mp = Math.min(me.maxMp, me.mp + mpRegen);
+        const hpRegen = (ZONES[currentZone].safe ? 5 : 0) + (me.activeAura === 'prayer' ? getEffectiveSkillLv('prayer') : 0);
+        if (hpRegen > 0) me.hp = Math.min(me.maxHp, me.hp + hpRegen);
+        updateHud();
+      }
+
+      const stNow = getMyStats();
+      me.speed = stNow.moveSpd;
 
       let vx = 0, vy = 0;
       if (keys['a'] || keys['arrowleft']) vx -= 1; if (keys['d'] || keys['arrowright']) vx += 1;
-      if (keys['w'] || keys['arrowup']) vy -= 1; if (keys['s'] || keys['arrowdown']) vy += 1;
+      if (keys['arrowup']) vy -= 1; if (keys['s'] || keys['arrowdown']) vy += 1;
 
       if (vx !== 0 || vy !== 0) {
         me.targetX = null; me.targetY = null; const len = Math.hypot(vx, vy);
@@ -1045,12 +1209,16 @@
               m.hp -= p.dmg; m.hit = 5; activeTarget = m; spawnEffect(p.x, p.y, p.color, 5);
               if (!p.spiral) p.life = 0;
               if (m.hp <= 0) {
-                spawnEffect(m.x, m.y, '#ef4444', m.isBoss ? 24 : 10); me.exp += m.exp;
-                if (me.exp >= me.maxExp) {
-                  me.level++; me.exp -= me.maxExp; me.maxExp = Math.floor(me.maxExp * 1.4);
-                  const st = getMyStats(); me.maxHp = st.maxHp; me.maxMp = st.maxMp; me.hp = me.maxHp; me.mp = me.maxMp;
-                  spawnEffect(me.x, me.y, '#facc15', 25); addChat(`🎉 레벨 업! Lv.${me.level} 달성!`, '#facc15');
-                  sendNet({ t: 'save', level: me.level, exp: me.exp, gold: me.gold, inv: me.inventory });
+                spawnEffect(m.x, m.y, '#ef4444', m.isBoss ? 24 : 10);
+                if (me.level < MAX_LEVEL) {
+                  me.exp += m.exp;
+                  while (me.exp >= me.maxExp && me.level < MAX_LEVEL) {
+                    me.level++; me.skillPoints++; me.exp -= me.maxExp; me.maxExp = Math.floor(me.maxExp * 1.35);
+                    const st = getMyStats(); me.maxHp = st.maxHp; me.maxMp = st.maxMp; me.hp = me.maxHp; me.mp = me.maxMp;
+                    spawnEffect(me.x, me.y, '#facc15', 25);
+                    addChat(`🎉 레벨 업! Lv.${me.level} 달성! (스킬 포인트 +1, T키로 확인)`, '#facc15');
+                    sendNet({ t: 'save', level: me.level, exp: me.exp, gold: me.gold, inv: me.inventory });
+                  }
                 }
                 loots.push({ x: m.x - 10, y: m.y, gold: Math.floor(20 + Math.random() * 50 * ZONES[currentZone].act) });
                 if (m.isBoss || Math.random() < 0.45) loots.push({ x: m.x + 12, y: m.y + 6, itemId: DROP_POOL[Math.floor(Math.random() * DROP_POOL.length)] });
@@ -1093,9 +1261,7 @@
       ctx.fillStyle = z.bg; ctx.fillRect(0, 0, canvas.width, canvas.height);
       if (!started) return;
 
-      ctx.save();
-      ctx.translate(-Math.round(camX), -Math.round(camY));
-
+      ctx.save(); ctx.translate(-Math.round(camX), -Math.round(camY));
       const tile = 48;
       for (let x = Math.floor(camX / tile) * tile; x < camX + canvas.width + tile; x += tile) {
         for (let y = Math.floor(camY / tile) * tile; y < camY + canvas.height + tile; y += tile) {
@@ -1103,7 +1269,6 @@
           ctx.strokeStyle = z.tile; ctx.lineWidth = 2; ctx.strokeRect(x, y, tile, tile);
         }
       }
-
       if (z.safe) drawTownScenery(ctx, currentZone, tick);
 
       portals.forEach(pt => {
@@ -1142,7 +1307,6 @@
       ctx.restore();
 
       drawWeather(ctx, currentZone);
-
       const grad = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, canvas.height * 0.28, canvas.width / 2, canvas.height / 2, canvas.width * 0.72);
       grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,0.72)');
       ctx.fillStyle = grad; ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1155,8 +1319,7 @@
       const cls = CLASSES[selectedClass];
       me.classId = selectedClass; me.name = authUserId; me.equip.weapon = cls.startWpn;
       const st = getMyStats(); me.maxHp = st.maxHp; me.hp = st.maxHp; me.maxMp = st.maxMp; me.mp = st.maxMp;
-      document.getElementById('leftSkillIcon').textContent = cls.icon;
-      document.getElementById('leftSkillName').textContent = cls.skill.slice(0, 4);
+      updateSkillHud();
       document.getElementById('charSelectScreen').classList.add('hidden');
       document.getElementById('topBar').classList.remove('hidden');
       document.getElementById('chatWrap').classList.remove('hidden');
