@@ -37,7 +37,14 @@
     }
     .d2-input:focus { border-color: #e5b85c; }
 
-    /* 로그인 & 회원가입 & 캐릭터 선택 오버레이 */
+    /* 휴대폰 010- 분리 입력칸 */
+    .phone-row { display: flex; gap: 6px; align-items: stretch; }
+    .phone-prefix {
+      display: flex; align-items: center; justify-content: center;
+      padding: 0 12px; background: #1c1410; border: 1px solid #6b533b;
+      color: #e5b85c; font-weight: 900; font-size: 13px; flex-shrink: 0;
+    }
+
     .full-screen {
       position: fixed; inset: 0; z-index: 100;
       background: radial-gradient(circle at 50% 25%, #2b0f0c 0%, #090606 72%);
@@ -69,7 +76,6 @@
     .class-name { font-size: 13px; font-weight: 900; color: #f5d89c; }
     .class-skill { font-size: 10px; color: #b89f82; margin-top: 3px; }
 
-    /* 상단 HUD */
     #topBar {
       position: fixed; top: 8px; left: 8px; right: 8px; z-index: 20;
       display: flex; justify-content: space-between; align-items: flex-start;
@@ -90,7 +96,6 @@
     #targetHpFill { height: 100%; background: linear-gradient(90deg, #991b1b, #ef4444); width: 100%; }
     #topBtns { pointer-events: auto; display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
 
-    /* 채팅창 */
     #chatWrap {
       position: fixed; left: 10px; bottom: 112px; width: 290px; max-width: 65vw;
       z-index: 25; pointer-events: none;
@@ -104,7 +109,6 @@
       background: rgba(10,8,7,0.92); border: 1px solid #8a6a47; color: #fff; outline: none;
     }
 
-    /* 하단 KIABLO HUD */
     #d2Hud {
       position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
       height: 92px; display: flex; align-items: flex-end; justify-content: center;
@@ -152,7 +156,6 @@
     .belt-slot .key { position: absolute; top: 1px; left: 3px; font-size: 9px; color: #a89378; }
     .belt-slot .cnt { position: absolute; bottom: 1px; right: 3px; font-size: 9px; color: #fff; font-weight: 900; }
 
-    /* 모달 */
     .modal-overlay {
       position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,0.72);
       display: flex; align-items: center; justify-content: center; padding: 12px;
@@ -192,7 +195,7 @@
 </head>
 <body>
 
-  <!-- 1단계: KIABLO 로그인 / 회원가입 화면 -->
+  <!-- 1단계: KIABLO 로그인 / 회원가입 -->
   <div id="authScreen" class="full-screen">
     <div style="text-align:center;">
       <h1 class="d2-title" style="font-size:34px;">KIABLO</h1>
@@ -207,7 +210,13 @@
 
       <div style="display:flex; flex-direction:column; gap:8px;">
         <input id="authUserId" class="d2-input" type="text" maxlength="10" placeholder="아이디 (한글/영문/숫자/-/_ 10자 이내)" />
-        <input id="authPhone" class="d2-input hidden" type="tel" maxlength="13" placeholder="휴대폰 번호 (예: 010-1234-5678)" />
+
+        <!-- 휴대폰 번호: 010- 고정 + 숫자 8자리 -->
+        <div id="authPhoneWrap" class="phone-row hidden">
+          <div class="phone-prefix">010-</div>
+          <input id="authPhone8" class="d2-input" type="tel" inputmode="numeric" maxlength="8" placeholder="뒷번호 숫자 8자리" />
+        </div>
+
         <input id="authPassword" class="d2-input" type="password" maxlength="20" placeholder="비밀번호 (4~20자)" />
         <div id="authError" class="err-msg"></div>
         <button id="authSubmitBtn" class="d2-btn" style="padding:10px; font-size:14px;">KIABLO 로그인</button>
@@ -215,15 +224,13 @@
     </div>
   </div>
 
-  <!-- 2단계: 캐릭터 선택 화면 -->
+  <!-- 2단계: 직업 선택 -->
   <div id="charSelectScreen" class="full-screen hidden">
     <div style="text-align:center;">
       <h1 class="d2-title" style="font-size:28px;">KIABLO — 직업 선택</h1>
       <p id="welcomeUserText" style="font-size:12px; color:#f5d89c; margin-top:4px;"></p>
     </div>
-
     <div class="class-grid" id="classGrid"></div>
-
     <div class="d2-panel" style="padding:12px 16px; width:100%; max-width:420px; display:flex; flex-direction:column; gap:8px;">
       <div style="display:flex; gap:8px;">
         <button id="enterWorldBtn" class="d2-btn" style="flex:1; padding:10px; font-size:14px;">⚔️ 월드 입장하기</button>
@@ -235,7 +242,6 @@
     </div>
   </div>
 
-  <!-- 메인 게임 캔버스 -->
   <canvas id="gameCanvas"></canvas>
 
   <!-- 상단 HUD -->
@@ -244,12 +250,10 @@
       <div id="zoneName">Act 1 — 로그 캠프 (마을)</div>
       <div id="netStatus">서버 연결 중...</div>
     </div>
-
     <div id="targetBarWrap">
       <div id="targetName">안다리엘</div>
       <div id="targetHpBg"><div id="targetHpFill"></div></div>
     </div>
-
     <div id="topBtns">
       <button class="d2-btn" onclick="openModal('wpModal')">🌀 웨이포인트(W)</button>
       <button class="d2-btn" onclick="openModal('invModal')">🎒 장비/가방(I)</button>
@@ -277,34 +281,29 @@
       <div class="orb-gloss"></div>
       <div class="orb-text"><span>HP</span><span id="hpText">100/100</span></div>
     </div>
-
     <div id="hudCenter" class="d2-panel">
       <div class="hud-row">
         <div class="skill-slot" onclick="castPrimarySkill()" title="주력 스킬 (Space / 좌클릭)">
           <span id="leftSkillIcon">❄️</span>
           <small id="leftSkillName">스킬</small>
         </div>
-
         <div class="belt-group">
           <div class="belt-slot" onclick="usePotion('hp')"><span class="key">1</span>🧪<span class="cnt" id="hpPotCnt">5</span></div>
           <div class="belt-slot" onclick="usePotion('mp')"><span class="key">2</span>💧<span class="cnt" id="mpPotCnt">5</span></div>
           <div class="belt-slot" onclick="usePotion('full')"><span class="key">3</span>🟣<span class="cnt" id="fullPotCnt">2</span></div>
           <div class="belt-slot" onclick="castTownPortal()"><span class="key">4</span>📜<span class="cnt">∞</span></div>
         </div>
-
         <div class="skill-slot" onclick="castTeleportMobile()" title="텔레포트 (우클릭 / T)">
           <span>⚡</span>
           <small>텔포(T)</small>
         </div>
       </div>
-
       <div style="display:flex; align-items:center; gap:8px;">
         <span id="lvlText" style="font-size:11px; font-weight:900; color:#facc15; white-space:nowrap;">Lv.1</span>
         <div id="expBarBg"><div id="expBarFill"></div></div>
         <span id="goldText" style="font-size:11px; color:#fbbf24; white-space:nowrap;">0 G</span>
       </div>
     </div>
-
     <div class="orb-wrap" title="마나">
       <div id="mpOrbFill" class="orb-fill"></div>
       <div class="orb-gloss"></div>
@@ -346,18 +345,24 @@
     let authToken = localStorage.getItem('kiablo_token') || null;
     let authUserId = localStorage.getItem('kiablo_user_id') || null;
 
+    // 휴대폰 뒷번호 8자리 숫자만 입력 강제
+    const authPhone8 = document.getElementById('authPhone8');
+    authPhone8.addEventListener('input', () => {
+      authPhone8.value = authPhone8.value.replace(/\D/g, '').slice(0, 8);
+    });
+
     function switchAuthTab(mode) {
       authMode = mode;
       document.getElementById('tabLogin').classList.toggle('active', mode === 'login');
       document.getElementById('tabRegister').classList.toggle('active', mode === 'register');
-      document.getElementById('authPhone').classList.toggle('hidden', mode === 'login');
+      document.getElementById('authPhoneWrap').classList.toggle('hidden', mode === 'login');
       document.getElementById('authSubmitBtn').textContent = mode === 'login' ? 'KIABLO 로그인' : 'KIABLO 회원가입';
       document.getElementById('authError').textContent = '';
     }
 
     async function handleAuthSubmit() {
       const userId = document.getElementById('authUserId').value.trim();
-      const phone = document.getElementById('authPhone').value.trim();
+      const phone8 = authPhone8.value.replace(/\D/g, '');
       const password = document.getElementById('authPassword').value.trim();
       const errEl = document.getElementById('authError');
       errEl.textContent = '';
@@ -366,8 +371,8 @@
         errEl.textContent = '아이디는 한글/영문/숫자/-/_ 10자 이내여야 합니다.';
         return;
       }
-      if (authMode === 'register' && !/^[0-9-]{9,13}$/.test(phone)) {
-        errEl.textContent = '휴대폰 번호를 정확히 입력해 주세요.';
+      if (authMode === 'register' && phone8.length !== 8) {
+        errEl.textContent = '휴대폰 뒷번호 숫자 8자리를 정확히 입력해 주세요.';
         return;
       }
       if (password.length < 4) {
@@ -375,12 +380,14 @@
         return;
       }
 
+      const formattedPhone = phone8.length === 8 ? `010-${phone8.slice(0, 4)}-${phone8.slice(4)}` : '';
+
       try {
         const endpoint = authMode === 'login' ? '/api/login' : '/api/register';
         const res = await fetch(API_BASE + endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, phone, password })
+          body: JSON.stringify({ userId, phone: formattedPhone, password })
         });
         const data = await res.json();
         if (!res.ok) {
@@ -415,7 +422,7 @@
     if (authToken && authUserId) showCharSelect();
 
     // =========================================================
-    // 1. 게임 마스터 데이터 (Act 1~5, 7개 클래스)
+    // 1. 게임 마스터 데이터
     // =========================================================
     const CLASSES = {
       sorceress: { name: '원소술사', icon: '❄️', skill: '프로즌 오브', color: '#38bdf8', robe: '#1d4ed8', skin: '#f5d0a9', hair: '#1e1b4b', startWpn: 'sorc_staff', baseHp: 90, baseMp: 100, dmg: 16, canTele: true },
@@ -428,15 +435,15 @@
     };
 
     const ZONES = {
-      act1_town:  { act: 1, name: 'Act 1 — 로그 캠프 (마을)',       safe: true,  bg: '#232b1e', tile: '#1b2217', next: 'act1_field' },
+      act1_town:  { act: 1, name: 'Act 1 — 로그 캠프 (마을)',       safe: true,  bg: '#2c291f', tile: '#242219', next: 'act1_field' },
       act1_field: { act: 1, name: 'Act 1 — 카타콤 (보스: 안다리엘)', safe: false, bg: '#1e1918', tile: '#161211', mob: '폴른', boss: '안다리엘', mobHp: 45, bossHp: 450, mobColor: '#dc2626', bossColor: '#16a34a' },
-      act2_town:  { act: 2, name: 'Act 2 — 루트 골레인 (마을)',     safe: true,  bg: '#524026', tile: '#42321d', next: 'act2_field' },
+      act2_town:  { act: 2, name: 'Act 2 — 루트 골레인 (마을)',     safe: true,  bg: '#705836', tile: '#614b2d', next: 'act2_field' },
       act2_field: { act: 2, name: 'Act 2 — 탈 라샤의 무덤 (듀리엘)', safe: false, bg: '#3b2d1c', tile: '#2b2013', mob: '미라', boss: '듀리엘', mobHp: 95, bossHp: 900, mobColor: '#d97706', bossColor: '#0284c7' },
-      act3_town:  { act: 3, name: 'Act 3 — 쿠라스트 부두 (마을)',   safe: true,  bg: '#1c3329', tile: '#14261f', next: 'act3_field' },
+      act3_town:  { act: 3, name: 'Act 3 — 쿠라스트 부두 (마을)',   safe: true,  bg: '#132924', tile: '#0e201c', next: 'act3_field' },
       act3_field: { act: 3, name: 'Act 3 — 증오의 억류지 (메피스토)', safe: false, bg: '#181421', tile: '#110d17', mob: '우상족', boss: '메피스토', mobHp: 160, bossHp: 1600, mobColor: '#9333ea', bossColor: '#38bdf8' },
-      act4_town:  { act: 4, name: 'Act 4 — 혼돈의 요새 (마을)',     safe: true,  bg: '#241e21', tile: '#1a1518', next: 'act4_field' },
+      act4_town:  { act: 4, name: 'Act 4 — 혼돈의 요새 (마을)',     safe: true,  bg: '#231e24', tile: '#1a161b', next: 'act4_field' },
       act4_field: { act: 4, name: 'Act 4 — 카오스 생츄어리 (키아블로)', safe: false, bg: '#260d0b', tile: '#1a0807', mob: '베놈 로드', boss: '키아블로', mobHp: 260, bossHp: 2800, mobColor: '#ea580c', bossColor: '#ef4444' },
-      act5_town:  { act: 5, name: 'Act 5 — 하로가스 (마을)',        safe: true,  bg: '#2b333d', tile: '#212830', next: 'act5_field' },
+      act5_town:  { act: 5, name: 'Act 5 — 하로가스 (마을)',        safe: true,  bg: '#4b5563', tile: '#3e4754', next: 'act5_field' },
       act5_field: { act: 5, name: 'Act 5 — 세계석 성채 (보스: 바알)', safe: false, bg: '#161c26', tile: '#0f141c', mob: '파멸의 기사', boss: '바알', mobHp: 400, bossHp: 4500, mobColor: '#6366f1', bossColor: '#c084fc' }
     };
 
@@ -464,7 +471,174 @@
     const DROP_POOL = ['crystal_sword', 'monarch', 'shako', 'tal_armor', 'hoto_flail', 'grief_blade', 'windforce', 'stormshield', 'andariel_helm', 'jah_rune', 'ber_rune'];
 
     // =========================================================
-    // 2. 파츠 분리 도트 렌더링
+    // 2. 액트 1~5 도트 마을 배경 렌더링 엔진
+    // =========================================================
+    function drawLabel(c, x, y, text, color = '#f5d89c') {
+      c.font = 'bold 11px "Malgun Gothic", sans-serif';
+      c.textAlign = 'center';
+      c.fillStyle = 'rgba(0,0,0,0.75)';
+      const w = c.measureText(text).width + 10;
+      c.fillRect(x - w / 2, y - 12, w, 15);
+      c.fillStyle = color;
+      c.fillText(text, x, y);
+    }
+
+    function drawFire(c, x, y, t, scale = 1) {
+      const f = Math.sin(t * 0.25) * 3;
+      c.fillStyle = 'rgba(251, 146, 60, 0.22)';
+      c.beginPath(); c.arc(x, y, 42 * scale + f, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#451a03'; c.fillRect(x - 14 * scale, y + 4 * scale, 28 * scale, 8 * scale);
+      c.fillStyle = '#ea580c'; c.fillRect(x - 10 * scale, y - 10 * scale - f, 20 * scale, 18 * scale + f);
+      c.fillStyle = '#facc15'; c.fillRect(x - 6 * scale, y - 6 * scale - f * 0.6, 12 * scale, 12 * scale);
+      c.fillStyle = '#fef9c3'; c.fillRect(x - 3 * scale, y - 2 * scale, 6 * scale, 6 * scale);
+    }
+
+    function drawTownScenery(c, zoneId, t) {
+      // 공통 사냥터 출구 포탈 (우측 상단 1120, 420)
+      c.fillStyle = 'rgba(239, 68, 68, 0.28)';
+      c.beginPath(); c.ellipse(1120, 420, 38, 22, 0, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = '#f87171'; c.lineWidth = 2; c.stroke();
+      drawLabel(c, 1120, 390, '⚔️ 사냥터 입구 (클릭)', '#fca5a5');
+
+      // 공통 웨이포인트 (800, 470)
+      c.fillStyle = '#292524'; c.fillRect(756, 444, 88, 52);
+      c.strokeStyle = '#38bdf8'; c.lineWidth = 3;
+      c.beginPath(); c.ellipse(800, 470, 32, 16, 0, 0, Math.PI * 2); c.stroke();
+      c.fillStyle = 'rgba(56,189,248,0.28)'; c.fill();
+      drawLabel(c, 800, 438, '🌀 웨이포인트 (W)', '#bae6fd');
+
+      if (zoneId === 'act1_town') {
+        // Act 1: 로그 캠프 (나무 방책 + 모닥불 + 찰시 대장간 + 아카라 천막 + 마차)
+        c.fillStyle = '#3f2e1e';
+        for (let x = 360; x <= 1240; x += 24) {
+          c.fillRect(x, 260, 18, 34);
+          c.fillRect(x, 890, 18, 34);
+        }
+        for (let y = 260; y <= 900; y += 24) {
+          c.fillRect(360, y, 20, 20);
+          c.fillRect(1220, y, 20, 20);
+        }
+        // 중앙 모닥불 & 보관함
+        drawFire(c, 800, 620, t, 1.1);
+        drawLabel(c, 800, 660, '🔥 로그 캠프 모닥불', '#fdba74');
+        c.fillStyle = '#78350f'; c.fillRect(855, 600, 26, 20);
+        c.strokeStyle = '#d4af37'; c.lineWidth = 2; c.strokeRect(855, 600, 26, 20);
+        drawLabel(c, 868, 594, '📦 보관함', '#fde047');
+
+        // 찰시 대장간 (좌상단)
+        c.fillStyle = '#44403c'; c.fillRect(500, 430, 120, 80);
+        c.fillStyle = '#1c1917'; c.fillRect(512, 442, 44, 34);
+        drawFire(c, 534, 462, t, 0.7);
+        c.fillStyle = '#94a3b8'; c.fillRect(574, 468, 24, 14);
+        drawLabel(c, 560, 422, '⚒️ 찰시의 대장간', '#fca5a5');
+
+        // 아카라 천막 (우하단)
+        c.fillStyle = '#4c1d95'; c.fillRect(960, 620, 110, 74);
+        c.fillStyle = '#6d28d9'; c.fillRect(970, 610, 90, 24);
+        c.fillStyle = '#1e1b4b'; c.fillRect(1000, 654, 30, 40);
+        drawLabel(c, 1015, 604, '🧪 아카라의 천막', '#d8b4fe');
+
+        // 낡은 마차 (좌하단)
+        c.fillStyle = '#a8a29e'; c.fillRect(520, 700, 90, 48);
+        c.fillStyle = '#78350f'; c.fillRect(515, 742, 100, 12);
+        c.fillStyle = '#292524'; c.fillRect(530, 750, 16, 16); c.fillRect(584, 750, 16, 16);
+        drawLabel(c, 565, 692, '🐴 와리브의 마차', '#e7e5e4');
+      }
+      else if (zoneId === 'act2_town') {
+        // Act 2: 루트 골레인 (사막 궁전 + 중앙 오아시스 + 야자수 + 상인 천막)
+        c.fillStyle = '#b48a4e'; c.fillRect(620, 240, 360, 120);
+        c.fillStyle = '#d4af37'; c.beginPath(); c.arc(800, 260, 54, Math.PI, 0); c.fill();
+        c.fillStyle = '#291e12'; c.fillRect(775, 300, 50, 60);
+        drawLabel(c, 800, 232, '🏰 루트 골레인 궁전', '#fde047');
+
+        // 중앙 오아시스 분수
+        c.fillStyle = '#d6c3a5'; c.beginPath(); c.ellipse(800, 640, 74, 44, 0, 0, Math.PI * 2); c.fill();
+        c.fillStyle = '#0284c7'; c.beginPath(); c.ellipse(800, 640, 60, 34, 0, 0, Math.PI * 2); c.fill();
+        c.fillStyle = '#7dd3fc'; c.beginPath(); c.ellipse(800, 640, 26 + Math.sin(t * 0.1) * 4, 14, 0, 0, Math.PI * 2); c.fill();
+        drawLabel(c, 800, 696, '💧 오아시스 분수', '#7dd3fc');
+
+        // 야자수 4그루
+        [[520, 500], [1080, 520], [540, 760], [1060, 760]].forEach(([px, py]) => {
+          c.fillStyle = '#78350f'; c.fillRect(px - 5, py, 10, 44);
+          c.fillStyle = '#15803d'; c.fillRect(px - 26, py - 12, 52, 14);
+          c.fillStyle = '#22c55e'; c.fillRect(px - 18, py - 20, 36, 12);
+        });
+        // 파라의 대장간 천막
+        c.fillStyle = '#b91c1c'; c.fillRect(500, 600, 100, 60);
+        drawLabel(c, 550, 592, '⚔️ 파라의 상점', '#fca5a5');
+      }
+      else if (zoneId === 'act3_town') {
+        // Act 3: 쿠라스트 부두 (늪지대 물 + 나무 부두 + 횃불)
+        c.fillStyle = '#0c1f1a'; c.fillRect(0, 0, MAP_W, 380); c.fillRect(0, 820, MAP_W, 400);
+        // 중앙 나무 부두 데크
+        c.fillStyle = '#5c4028'; c.fillRect(460, 400, 680, 400);
+        c.strokeStyle = '#3b2616'; c.lineWidth = 2;
+        for (let y = 400; y <= 800; y += 20) { c.beginPath(); c.moveTo(460, y); c.lineTo(1140, y); c.stroke(); }
+        // 부두 횃불 4개
+        [[500, 440], [1100, 440], [500, 760], [1100, 760]].forEach(([fx, fy]) => drawFire(c, fx, fy, t, 0.75));
+        // 오르무스 오두막
+        c.fillStyle = '#3f6212'; c.fillRect(540, 560, 110, 80);
+        drawLabel(c, 595, 552, '🌿 오르무스의 오두막', '#bef264');
+        drawLabel(c, 800, 630, '🛶 쿠라스트 부두 중앙', '#fde047');
+      }
+      else if (zoneId === 'act4_town') {
+        // Act 4: 혼돈의 요새 (외곽 용암 + 흑요석 광장 + 석주 + 대천사 티리엘)
+        c.fillStyle = '#991b1b'; c.fillRect(0, 0, MAP_W, 280); c.fillRect(0, 920, MAP_W, 300);
+        c.fillStyle = '#ea580c'; c.fillRect(0, 250, MAP_W, 24); c.fillRect(0, 920, MAP_W, 24);
+        // 석주 4개
+        [[540, 420], [1060, 420], [540, 780], [1060, 780]].forEach(([px, py]) => {
+          c.fillStyle = '#44403c'; c.fillRect(px - 16, py - 40, 32, 70);
+          c.fillStyle = '#78716c'; c.fillRect(px - 20, py - 46, 40, 10);
+          drawFire(c, px, py - 52, t, 0.65);
+        });
+        // 대천사 티리엘 (빛나는 날개)
+        const wing = Math.sin(t * 0.12) * 4;
+        c.fillStyle = 'rgba(186, 230, 253, 0.45)';
+        c.fillRect(760 - wing, 575, 28, 36); c.fillRect(812 + wing, 575, 28, 36);
+        c.fillStyle = '#e0f2fe'; c.fillRect(792, 580, 16, 30);
+        c.fillStyle = '#facc15'; c.fillRect(794, 570, 12, 10);
+        drawLabel(c, 800, 560, '👼 대천사 티리엘', '#7dd3fc');
+      }
+      else if (zoneId === 'act5_town') {
+        // Act 5: 하로가스 (설원 + 북방 목조 성벽 + 화로 + 라주크 대장간)
+        c.fillStyle = '#64748b'; c.fillRect(400, 280, 800, 28); c.fillRect(400, 880, 800, 28);
+        c.fillStyle = '#cbd5e1'; c.fillRect(400, 276, 800, 8);
+        // 화로 4개
+        [[600, 500], [1000, 500], [600, 720], [1000, 720]].forEach(([fx, fy]) => drawFire(c, fx, fy, t, 0.9));
+        // 라주크 대장간
+        c.fillStyle = '#334155'; c.fillRect(500, 570, 120, 80);
+        c.fillStyle = '#e2e8f0'; c.fillRect(500, 564, 120, 12);
+        drawLabel(c, 560, 556, '🔨 라주크의 대장간', '#93c5fd');
+        // 말라의 집
+        c.fillStyle = '#475569'; c.fillRect(980, 570, 110, 80);
+        c.fillStyle = '#f1f5f9'; c.fillRect(980, 564, 110, 12);
+        drawLabel(c, 1035, 556, '❄️ 말라의 치료소', '#bae6fd');
+      }
+    }
+
+    // 날씨 효과 (Act 1 비, Act 5 눈)
+    const weatherDrops = Array.from({ length: 65 }, () => ({ x: Math.random() * 1400, y: Math.random() * 900, sp: 3 + Math.random() * 4 }));
+    function drawWeather(c, zoneId) {
+      if (zoneId === 'act1_town') {
+        c.strokeStyle = 'rgba(148, 163, 184, 0.32)';
+        c.lineWidth = 1;
+        weatherDrops.forEach(d => {
+          d.y += d.sp * 2.2; d.x -= d.sp * 0.5;
+          if (d.y > canvas.height) { d.y = -10; d.x = Math.random() * canvas.width; }
+          c.beginPath(); c.moveTo(d.x, d.y); c.lineTo(d.x - 4, d.y + 12); c.stroke();
+        });
+      } else if (zoneId === 'act5_town') {
+        c.fillStyle = 'rgba(241, 245, 249, 0.72)';
+        weatherDrops.forEach(d => {
+          d.y += d.sp * 0.6; d.x += Math.sin(tick * 0.03 + d.y * 0.02) * 0.8;
+          if (d.y > canvas.height) { d.y = -6; d.x = Math.random() * canvas.width; }
+          c.fillRect(d.x, d.y, 3, 3);
+        });
+      }
+    }
+
+    // =========================================================
+    // 3. 파츠 분리 도트 캐릭터 렌더링
     // =========================================================
     function drawPixelCharacter(c, x, y, clsId, equip, dir, walkFrame, swingTimer, isMe, name, lv) {
       const cls = CLASSES[clsId] || CLASSES.sorceress;
@@ -491,10 +665,8 @@
       const wpnItem = (equip?.weapon && ITEM_DB[equip.weapon]) ? ITEM_DB[equip.weapon] : ITEM_DB.short_sword;
 
       const legOff = walkFrame ? 2 : 0;
-      c.fillStyle = '#18181b';
-      c.fillRect(-6, 6 + legOff, 5, 8); c.fillRect(1, 6 - legOff, 5, 8);
-      c.fillStyle = '#44403c';
-      c.fillRect(-5, 7 + legOff, 3, 6); c.fillRect(2, 7 - legOff, 3, 6);
+      c.fillStyle = '#18181b'; c.fillRect(-6, 6 + legOff, 5, 8); c.fillRect(1, 6 - legOff, 5, 8);
+      c.fillStyle = '#44403c'; c.fillRect(-5, 7 + legOff, 3, 6); c.fillRect(2, 7 - legOff, 3, 6);
 
       c.fillStyle = '#111'; c.fillRect(-9, -8 + bob, 18, 16);
       c.fillStyle = armorColor; c.fillRect(-7, -6 + bob, 14, 12);
@@ -547,7 +719,7 @@
     }
 
     // =========================================================
-    // 3. 클래스 선택 & 캔버스 초기화
+    // 4. 직업 선택 & 게임 루프
     // =========================================================
     let selectedClass = 'sorceress';
     const classGrid = document.getElementById('classGrid');
@@ -575,7 +747,7 @@
     let ws = null, wsConnected = false, started = false, currentZone = 'act1_town', myId = null;
     const me = {
       name: '', classId: 'sorceress', level: 1, exp: 0, maxExp: 100, gold: 0,
-      x: 800, y: 600, targetX: null, targetY: null, dir: 0, speed: 3.4,
+      x: 800, y: 560, targetX: null, targetY: null, dir: 0, speed: 3.4,
       hp: 100, maxHp: 100, mp: 100, maxMp: 100,
       hpPot: 5, mpPot: 5, fullPot: 2, swing: 0, cd: 0,
       equip: { weapon: 'sorc_staff', armor: 'none', helm: 'none', shield: 'none' },
@@ -586,71 +758,44 @@
     let monsters = [], projectiles = [], particles = [], loots = [], portals = [];
     let activeTarget = null, tick = 0;
 
-    // =========================================================
-    // 4. WebSocket 통신
-    // =========================================================
     function connectServer() {
       const statusEl = document.getElementById('netStatus');
       statusEl.textContent = 'KIABLO 서버 접속 중...';
       ws = new WebSocket(WS_URL);
-
       ws.onopen = () => {
         wsConnected = true;
         ws.send(JSON.stringify({ t: 'auth', token: authToken, classId: me.classId, startWpn: CLASSES[me.classId].startWpn }));
       };
-
       ws.onmessage = (ev) => {
-        let msg;
-        try { msg = JSON.parse(ev.data); } catch { return; }
-
-        if (msg.t === 'auth_error') {
-          alert(msg.error);
-          logoutKiablo();
-        } else if (msg.t === 'zone_init') {
+        let msg; try { msg = JSON.parse(ev.data); } catch { return; }
+        if (msg.t === 'auth_error') { alert(msg.error); logoutKiablo(); }
+        else if (msg.t === 'zone_init') {
           myId = msg.me.id;
           if (msg.save) {
-            me.level = msg.save.level || 1;
-            me.exp = msg.save.exp || 0;
-            me.gold = msg.save.gold || 0;
+            me.level = msg.save.level || 1; me.exp = msg.save.exp || 0; me.gold = msg.save.gold || 0;
             if (msg.save.equip) me.equip = msg.save.equip;
             if (Array.isArray(msg.save.inventory)) me.inventory = msg.save.inventory;
-            const st = getMyStats();
-            me.maxHp = st.maxHp; me.hp = st.maxHp; me.maxMp = st.maxMp; me.mp = st.maxMp;
+            const st = getMyStats(); me.maxHp = st.maxHp; me.hp = st.maxHp; me.maxMp = st.maxMp; me.mp = st.maxMp;
             updateHud();
           }
-          otherPlayers.clear();
-          (msg.others || []).forEach(op => addOrUpdateOther(op));
-          updateOnlineCount();
-        } else if (msg.t === 'join' && msg.p) {
-          addOrUpdateOther(msg.p); updateOnlineCount();
-        } else if (msg.t === 'leave') {
-          otherPlayers.delete(msg.id); updateOnlineCount();
-        } else if (msg.t === 'pos' && Array.isArray(msg.d)) {
+          otherPlayers.clear(); (msg.others || []).forEach(op => addOrUpdateOther(op)); updateOnlineCount();
+        } else if (msg.t === 'join' && msg.p) { addOrUpdateOther(msg.p); updateOnlineCount(); }
+        else if (msg.t === 'leave') { otherPlayers.delete(msg.id); updateOnlineCount(); }
+        else if (msg.t === 'pos' && Array.isArray(msg.d)) {
           msg.d.forEach(([id, x, y, d]) => {
             if (id === myId) return;
-            const op = otherPlayers.get(id);
-            if (op) { op.tx = x; op.ty = y; op.d = d; op.moving = 12; }
+            const op = otherPlayers.get(id); if (op) { op.tx = x; op.ty = y; op.d = d; op.moving = 12; }
           });
         } else if (msg.t === 'skill') {
           const op = otherPlayers.get(msg.id);
           if (op) {
             op.swing = 10;
-            if (msg.sk === 'teleport') {
-              spawnEffect(op.x, op.y, '#38bdf8', 14);
-              op.x = op.tx = msg.tx; op.y = op.ty = msg.ty;
-              spawnEffect(op.x, op.y, '#c084fc', 16);
-            } else {
-              spawnSkillProjectile(op.x, op.y, msg.tx, msg.ty, op.c, false);
-            }
+            if (msg.sk === 'teleport') { spawnEffect(op.x, op.y, '#38bdf8', 14); op.x = op.tx = msg.tx; op.y = op.ty = msg.ty; spawnEffect(op.x, op.y, '#c084fc', 16); }
+            else spawnSkillProjectile(op.x, op.y, msg.tx, msg.ty, op.c, false);
           }
-        } else if (msg.t === 'equip') {
-          const op = otherPlayers.get(msg.id);
-          if (op && msg.eq) op.eq = msg.eq;
-        } else if (msg.t === 'chat') {
-          addChat(`${msg.n}: ${msg.txt}`, '#f5d89c');
-        }
+        } else if (msg.t === 'equip') { const op = otherPlayers.get(msg.id); if (op && msg.eq) op.eq = msg.eq; }
+        else if (msg.t === 'chat') addChat(`${msg.n}: ${msg.txt}`, '#f5d89c');
       };
-
       ws.onclose = () => {
         wsConnected = false;
         statusEl.innerHTML = `<span style="color:#f87171;">● 재연결 중...</span>`;
@@ -660,14 +805,9 @@
 
     function sendNet(obj) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj)); }
     function addOrUpdateOther(p) { if (p.id !== myId) otherPlayers.set(p.id, { ...p, tx: p.x, ty: p.y, moving: 0, swing: 0 }); }
-    function updateOnlineCount() {
-      if (wsConnected) document.getElementById('netStatus').innerHTML = `<span style="color:#4ade80;">● KIABLO 온라인</span> · 현재 맵 ${otherPlayers.size + 1}명`;
-    }
+    function updateOnlineCount() { if (wsConnected) document.getElementById('netStatus').innerHTML = `<span style="color:#4ade80;">● KIABLO 온라인</span> · 현재 맵 ${otherPlayers.size + 1}명`; }
 
-    // =========================================================
-    // 5. 존 전환, 전투, 텔레포트, 인벤토리
-    // =========================================================
-    function enterZone(zoneId, spawnX = 800, spawnY = 600) {
+    function enterZone(zoneId, spawnX = 800, spawnY = 560) {
       currentZone = zoneId;
       const z = ZONES[zoneId];
       me.x = spawnX; me.y = spawnY; me.targetX = null; me.targetY = null;
@@ -680,8 +820,7 @@
         addChat(`[KIABLO] ${z.name} 도착! 체력/마나가 회복되었습니다.`, '#4ade80');
       } else {
         for (let i = 0; i < 14; i++) {
-          const mx = 200 + Math.random() * (MAP_W - 400);
-          const my = 200 + Math.random() * (MAP_H - 400);
+          const mx = 200 + Math.random() * (MAP_W - 400), my = 200 + Math.random() * (MAP_H - 400);
           if (Math.hypot(mx - me.x, my - me.y) < 180) continue;
           monsters.push({ name: z.mob, isBoss: false, x: mx, y: my, r: 16, hp: z.mobHp, maxHp: z.mobHp, spd: 1.3 + z.act * 0.15, dmg: 4 + z.act * 3, color: z.mobColor, exp: 25 * z.act, hit: 0 });
         }
@@ -715,17 +854,11 @@
       const baseAngle = Math.atan2(ty - sy, tx - sx);
       const stats = isMine ? getMyStats() : { dmg: 10 };
       if (clsId === 'amazon') {
-        [-0.22, -0.11, 0, 0.11, 0.22].forEach(off => {
-          const a = baseAngle + off;
-          projectiles.push({ x: sx, y: sy, vx: Math.cos(a) * 9, vy: Math.sin(a) * 9, life: 42, color: cls.color, r: 5, dmg: stats.dmg, isMine });
-        });
+        [-0.22, -0.11, 0, 0.11, 0.22].forEach(off => { const a = baseAngle + off; projectiles.push({ x: sx, y: sy, vx: Math.cos(a) * 9, vy: Math.sin(a) * 9, life: 42, color: cls.color, r: 5, dmg: stats.dmg, isMine }); });
       } else if (clsId === 'paladin') {
         projectiles.push({ x: sx, y: sy, angle: 0, dist: 14, cx: sx, cy: sy, spiral: true, life: 70, color: cls.color, r: 9, dmg: stats.dmg * 1.2, isMine });
       } else if (clsId === 'barbarian') {
-        for (let i = 0; i < 8; i++) {
-          const a = (Math.PI * 2 / 8) * i;
-          projectiles.push({ x: sx, y: sy, vx: Math.cos(a) * 6, vy: Math.sin(a) * 6, life: 16, color: cls.color, r: 10, dmg: stats.dmg * 1.3, isMine });
-        }
+        for (let i = 0; i < 8; i++) { const a = (Math.PI * 2 / 8) * i; projectiles.push({ x: sx, y: sy, vx: Math.cos(a) * 6, vy: Math.sin(a) * 6, life: 16, color: cls.color, r: 10, dmg: stats.dmg * 1.3, isMine }); }
       } else {
         projectiles.push({ x: sx, y: sy, vx: Math.cos(baseAngle) * 8.5, vy: Math.sin(baseAngle) * 8.5, life: 50, color: cls.color, r: 8, dmg: stats.dmg * 1.15, isMine });
       }
@@ -733,10 +866,8 @@
 
     function castPrimarySkill(tx, ty) {
       if (me.cd > 0) return;
-      const targetX = tx ?? (me.x + Math.cos(me.dir) * 180);
-      const targetY = ty ?? (me.y + Math.sin(me.dir) * 180);
-      me.dir = Math.atan2(targetY - me.y, targetX - me.x);
-      me.swing = 10; me.cd = 16;
+      const targetX = tx ?? (me.x + Math.cos(me.dir) * 180), targetY = ty ?? (me.y + Math.sin(me.dir) * 180);
+      me.dir = Math.atan2(targetY - me.y, targetX - me.x); me.swing = 10; me.cd = 16;
       if (me.mp >= 5) me.mp -= 5;
       spawnSkillProjectile(me.x, me.y, targetX, targetY, me.classId, true);
       sendNet({ t: 'skill', sk: 'primary', tx: Math.round(targetX), ty: Math.round(targetY) });
@@ -745,11 +876,8 @@
     function castTeleport(tx, ty) {
       if (!getMyStats().canTele) { addChat('[알림] 원소술사이거나 "수수께끼" 갑옷 장착 시 텔레포트 가능!', '#fbbf24'); return; }
       if (me.mp < 12) { addChat('[알림] 마나가 부족합니다!', '#60a5fa'); return; }
-      me.mp -= 12;
-      spawnEffect(me.x, me.y, '#38bdf8', 14);
-      const dx = tx - me.x, dy = ty - me.y;
-      const dist = Math.min(260, Math.hypot(dx, dy));
-      const ang = Math.atan2(dy, dx);
+      me.mp -= 12; spawnEffect(me.x, me.y, '#38bdf8', 14);
+      const dx = tx - me.x, dy = ty - me.y, dist = Math.min(260, Math.hypot(dx, dy)), ang = Math.atan2(dy, dx);
       me.x = Math.max(40, Math.min(MAP_W - 40, me.x + Math.cos(ang) * dist));
       me.y = Math.max(40, Math.min(MAP_H - 40, me.y + Math.sin(ang) * dist));
       me.targetX = null; me.targetY = null;
@@ -773,8 +901,7 @@
           else { me.inventory.push(l.itemId); const it = ITEM_DB[l.itemId]; addChat(`[획득] ${it.name}`, it.rarity === 'unique' ? '#d4af37' : '#60a5fa'); }
           loots.splice(i, 1);
           sendNet({ t: 'save', level: me.level, exp: me.exp, gold: me.gold, inv: me.inventory });
-          updateHud();
-          return;
+          updateHud(); return;
         }
       }
     }
@@ -794,19 +921,15 @@
         const it = ITEM_DB[me.equip[s]];
         return `<div class="equip-box"><div style="color:#a89378;font-size:10px;">${label}</div><div class="${it ? 'r-' + it.rarity : ''}" style="font-weight:700;margin-top:2px;">${it ? it.name : '비어있음'}</div></div>`;
       }).join('');
-
       const invList = document.getElementById('invList');
       invList.innerHTML = me.inventory.length ? '' : '<div style="font-size:11px;color:#6b7280;padding:12px;text-align:center;">가방이 비어있습니다.</div>';
       me.inventory.forEach((itemId, idx) => {
         const it = ITEM_DB[itemId]; if (!it) return;
-        const row = document.createElement('div');
-        row.className = 'inv-item';
+        const row = document.createElement('div'); row.className = 'inv-item';
         row.innerHTML = `<span class="r-${it.rarity}" style="font-weight:700;">${it.name}</span><span style="font-size:10px;color:#a89378;">${it.slot === 'rune' ? '보관용' : '클릭해 장착'}</span>`;
         row.onclick = () => {
           if (it.slot === 'rune') return;
-          const prev = me.equip[it.slot];
-          me.equip[it.slot] = itemId;
-          me.inventory.splice(idx, 1);
+          const prev = me.equip[it.slot]; me.equip[it.slot] = itemId; me.inventory.splice(idx, 1);
           if (prev && prev !== 'none') me.inventory.push(prev);
           sendNet({ t: 'equip', slot: it.slot, item: itemId, inv: me.inventory });
           addChat(`[장착] ${it.name} 착용 완료!`, '#facc15');
@@ -824,10 +947,8 @@
 
     function addChat(txt, color = '#e5e7eb') {
       const log = document.getElementById('chatLog');
-      const div = document.createElement('div');
-      div.style.color = color; div.textContent = txt;
-      log.appendChild(div);
-      while (log.children.length > 25) log.removeChild(log.firstChild);
+      const div = document.createElement('div'); div.style.color = color; div.textContent = txt;
+      log.appendChild(div); while (log.children.length > 25) log.removeChild(log.firstChild);
       log.scrollTop = log.scrollHeight;
     }
 
@@ -844,13 +965,7 @@
       document.getElementById('fullPotCnt').textContent = me.fullPot;
     }
 
-    // =========================================================
-    // 6. 입력 & 게임 루프
-    // =========================================================
-    const keys = {};
-    let camX = 0, camY = 0;
-    const mouseWorld = { x: 800, y: 600 };
-
+    const keys = {}; let camX = 0, camY = 0; const mouseWorld = { x: 800, y: 560 };
     window.addEventListener('keydown', (e) => {
       if (!started) return;
       const chatIn = document.getElementById('chatInput');
@@ -860,16 +975,10 @@
         return;
       }
       if (!chatIn.classList.contains('hidden')) return;
-      const k = e.key.toLowerCase();
-      keys[k] = true;
-      if (k === '1') usePotion('hp');
-      if (k === '2') usePotion('mp');
-      if (k === '3') usePotion('full');
-      if (k === '4' || k === 'p') castTownPortal();
-      if (k === 'i') openModal('invModal');
-      if (k === 'w') openModal('wpModal');
-      if (k === 't') castTeleport(mouseWorld.x, mouseWorld.y);
-      if (k === ' ') castPrimarySkill(mouseWorld.x, mouseWorld.y);
+      const k = e.key.toLowerCase(); keys[k] = true;
+      if (k === '1') usePotion('hp'); if (k === '2') usePotion('mp'); if (k === '3') usePotion('full');
+      if (k === '4' || k === 'p') castTownPortal(); if (k === 'i') openModal('invModal'); if (k === 'w') openModal('wpModal');
+      if (k === 't') castTeleport(mouseWorld.x, mouseWorld.y); if (k === ' ') castPrimarySkill(mouseWorld.x, mouseWorld.y);
       if (k === 'e' || k === 'f') pickupNearestLoot();
     });
     window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
@@ -882,6 +991,11 @@
       mouseWorld.x = wx; mouseWorld.y = wy;
       if (e.button === 2) { castTeleport(wx, wy); return; }
 
+      // 마을 사냥터 입구 클릭 시 즉시 입장
+      const z = ZONES[currentZone];
+      if (z.safe && z.next && Math.hypot(wx - 1120, wy - 420) < 46) { enterZone(z.next, 350, 900); return; }
+      if (z.safe && Math.hypot(wx - 800, wy - 470) < 42) { openModal('wpModal'); return; }
+
       for (let i = loots.length - 1; i >= 0; i--) {
         if (Math.hypot(wx - loots[i].x, wy - loots[i].y) < 34) {
           if (Math.hypot(me.x - loots[i].x, me.y - loots[i].y) < 110) pickupNearestLoot();
@@ -892,81 +1006,56 @@
       for (const pt of portals) if (Math.hypot(wx - pt.x, wy - pt.y) < 36) { enterZone(pt.to); return; }
       const clickedMob = monsters.find(m => Math.hypot(wx - m.x, wy - m.y) < m.r + 18);
       if (clickedMob) { activeTarget = clickedMob; castPrimarySkill(clickedMob.x, clickedMob.y); return; }
-      me.targetX = Math.max(30, Math.min(MAP_W - 30, wx));
-      me.targetY = Math.max(30, Math.min(MAP_H - 30, wy));
+      me.targetX = Math.max(30, Math.min(MAP_W - 30, wx)); me.targetY = Math.max(30, Math.min(MAP_H - 30, wy));
     });
 
     let lastNetPos = 0;
     function update() {
       if (!started) return;
-      tick++;
-      if (me.swing > 0) me.swing--;
-      if (me.cd > 0) me.cd--;
-      if (tick % 30 === 0) {
-        me.mp = Math.min(me.maxMp, me.mp + 2);
-        if (ZONES[currentZone].safe) me.hp = Math.min(me.maxHp, me.hp + 5);
-        updateHud();
-      }
+      tick++; if (me.swing > 0) me.swing--; if (me.cd > 0) me.cd--;
+      if (tick % 30 === 0) { me.mp = Math.min(me.maxMp, me.mp + 2); if (ZONES[currentZone].safe) me.hp = Math.min(me.maxHp, me.hp + 5); updateHud(); }
 
       let vx = 0, vy = 0;
-      if (keys['a'] || keys['arrowleft']) vx -= 1;
-      if (keys['d'] || keys['arrowright']) vx += 1;
-      if (keys['w'] || keys['arrowup']) vy -= 1;
-      if (keys['s'] || keys['arrowdown']) vy += 1;
+      if (keys['a'] || keys['arrowleft']) vx -= 1; if (keys['d'] || keys['arrowright']) vx += 1;
+      if (keys['w'] || keys['arrowup']) vy -= 1; if (keys['s'] || keys['arrowdown']) vy += 1;
 
       if (vx !== 0 || vy !== 0) {
-        me.targetX = null; me.targetY = null;
-        const len = Math.hypot(vx, vy);
-        me.x += (vx / len) * me.speed; me.y += (vy / len) * me.speed;
-        me.dir = Math.atan2(vy, vx); me.isMoving = true;
+        me.targetX = null; me.targetY = null; const len = Math.hypot(vx, vy);
+        me.x += (vx / len) * me.speed; me.y += (vy / len) * me.speed; me.dir = Math.atan2(vy, vx); me.isMoving = true;
       } else if (me.targetX !== null) {
         const dx = me.targetX - me.x, dy = me.targetY - me.y, dist = Math.hypot(dx, dy);
         if (dist > 6) { me.x += (dx / dist) * me.speed; me.y += (dy / dist) * me.speed; me.dir = Math.atan2(dy, dx); me.isMoving = true; }
         else { me.targetX = null; me.targetY = null; me.isMoving = false; }
-      } else { me.isMoving = false; }
+      } else me.isMoving = false;
 
-      me.x = Math.max(30, Math.min(MAP_W - 30, me.x));
-      me.y = Math.max(30, Math.min(MAP_H - 30, me.y));
-
+      me.x = Math.max(30, Math.min(MAP_W - 30, me.x)); me.y = Math.max(30, Math.min(MAP_H - 30, me.y));
       const now = performance.now();
-      if (me.isMoving && now - lastNetPos > 66) {
-        sendNet({ t: 'm', x: Math.round(me.x), y: Math.round(me.y), d: Number(me.dir.toFixed(2)) });
-        lastNetPos = now;
-      }
+      if (me.isMoving && now - lastNetPos > 66) { sendNet({ t: 'm', x: Math.round(me.x), y: Math.round(me.y), d: Number(me.dir.toFixed(2)) }); lastNetPos = now; }
 
-      otherPlayers.forEach(op => {
-        op.x += (op.tx - op.x) * 0.25; op.y += (op.ty - op.y) * 0.25;
-        if (op.moving > 0) op.moving--; if (op.swing > 0) op.swing--;
-      });
+      otherPlayers.forEach(op => { op.x += (op.tx - op.x) * 0.25; op.y += (op.ty - op.y) * 0.25; if (op.moving > 0) op.moving--; if (op.swing > 0) op.swing--; });
 
       for (let i = projectiles.length - 1; i >= 0; i--) {
         const p = projectiles[i]; p.life--;
         if (p.spiral) { p.angle += 0.22; p.dist += 1.6; p.x = p.cx + Math.cos(p.angle) * p.dist; p.y = p.cy + Math.sin(p.angle) * p.dist; }
         else { p.x += p.vx; p.y += p.vy; }
-
         if (p.isMine) {
           for (let j = monsters.length - 1; j >= 0; j--) {
             const m = monsters[j];
             if (Math.hypot(p.x - m.x, p.y - m.y) < m.r + p.r) {
-              m.hp -= p.dmg; m.hit = 5; activeTarget = m;
-              spawnEffect(p.x, p.y, p.color, 5);
+              m.hp -= p.dmg; m.hit = 5; activeTarget = m; spawnEffect(p.x, p.y, p.color, 5);
               if (!p.spiral) p.life = 0;
               if (m.hp <= 0) {
-                spawnEffect(m.x, m.y, '#ef4444', m.isBoss ? 24 : 10);
-                me.exp += m.exp;
+                spawnEffect(m.x, m.y, '#ef4444', m.isBoss ? 24 : 10); me.exp += m.exp;
                 if (me.exp >= me.maxExp) {
                   me.level++; me.exp -= me.maxExp; me.maxExp = Math.floor(me.maxExp * 1.4);
                   const st = getMyStats(); me.maxHp = st.maxHp; me.maxMp = st.maxMp; me.hp = me.maxHp; me.mp = me.maxMp;
-                  spawnEffect(me.x, me.y, '#facc15', 25);
-                  addChat(`🎉 레벨 업! Lv.${me.level} 달성!`, '#facc15');
+                  spawnEffect(me.x, me.y, '#facc15', 25); addChat(`🎉 레벨 업! Lv.${me.level} 달성!`, '#facc15');
                   sendNet({ t: 'save', level: me.level, exp: me.exp, gold: me.gold, inv: me.inventory });
                 }
                 loots.push({ x: m.x - 10, y: m.y, gold: Math.floor(20 + Math.random() * 50 * ZONES[currentZone].act) });
                 if (m.isBoss || Math.random() < 0.45) loots.push({ x: m.x + 12, y: m.y + 6, itemId: DROP_POOL[Math.floor(Math.random() * DROP_POOL.length)] });
                 if (m.isBoss) addChat(`🏆 보스 [${m.name}] 처치!`, '#d4af37');
-                monsters.splice(j, 1);
-                if (activeTarget === m) activeTarget = null;
-                updateHud();
+                monsters.splice(j, 1); if (activeTarget === m) activeTarget = null; updateHud();
               }
               break;
             }
@@ -980,8 +1069,7 @@
         const dist = Math.hypot(me.x - m.x, me.y - m.y);
         if (dist < 320 && dist > m.r + 14) { m.x += ((me.x - m.x) / dist) * m.spd; m.y += ((me.y - m.y) / dist) * m.spd; }
         else if (dist <= m.r + 18 && tick % 25 === 0) {
-          me.hp -= Math.max(2, m.dmg - Math.floor(getMyStats().def * 0.25));
-          spawnEffect(me.x, me.y, '#dc2626', 4);
+          me.hp -= Math.max(2, m.dmg - Math.floor(getMyStats().def * 0.25)); spawnEffect(me.x, me.y, '#dc2626', 4);
           if (me.hp <= 0) { addChat('💀 사망했습니다! 마을에서 부활합니다.', '#f87171'); enterZone(`act${ZONES[currentZone].act}_town`); }
           updateHud();
         }
@@ -1016,30 +1104,19 @@
         }
       }
 
-      if (z.safe) {
-        ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.ellipse(800, 520, 36, 20, 0, 0, Math.PI * 2); ctx.stroke();
-        ctx.fillStyle = 'rgba(56,189,248,0.22)'; ctx.fill();
-        ctx.fillStyle = '#bae6fd'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
-        ctx.fillText('🌀 웨이포인트 (W)', 800, 495);
-      }
+      if (z.safe) drawTownScenery(ctx, currentZone, tick);
 
       portals.forEach(pt => {
-        ctx.fillStyle = 'rgba(56,189,248,0.45)';
-        ctx.beginPath(); ctx.ellipse(pt.x, pt.y, 18, 28, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(56,189,248,0.45)'; ctx.beginPath(); ctx.ellipse(pt.x, pt.y, 18, 28, 0, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = '#e0f2fe'; ctx.lineWidth = 2; ctx.stroke();
-        ctx.fillStyle = '#bae6fd'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
-        ctx.fillText('타운 포탈', pt.x, pt.y - 34);
+        drawLabel(ctx, pt.x, pt.y - 34, '타운 포탈', '#bae6fd');
       });
 
       loots.forEach(l => {
         const label = l.gold ? `${l.gold} 골드` : ITEM_DB[l.itemId].name;
         const col = l.gold ? '#fbbf24' : (ITEM_DB[l.itemId].rarity === 'unique' ? '#d4af37' : ITEM_DB[l.itemId].rarity === 'rune' ? '#fb923c' : '#60a5fa');
         ctx.fillStyle = col; ctx.fillRect(l.x - 5, l.y - 5, 10, 10);
-        ctx.font = 'bold 11px "Malgun Gothic", sans-serif';
-        const w = ctx.measureText(label).width + 10;
-        ctx.fillStyle = 'rgba(0,0,0,0.82)'; ctx.fillRect(l.x - w / 2, l.y - 24, w, 16);
-        ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.fillText(label, l.x, l.y - 12);
+        drawLabel(ctx, l.x, l.y - 12, label, col);
       });
 
       const drawables = [{ y: me.y, fn: () => drawPixelCharacter(ctx, me.x, me.y, me.classId, me.equip, me.dir, me.isMoving ? (Math.floor(tick / 8) % 2) : 0, me.swing, true, me.name, me.level) }];
@@ -1064,6 +1141,8 @@
       particles.forEach(pt => { ctx.fillStyle = pt.color; ctx.fillRect(Math.round(pt.x), Math.round(pt.y), pt.s, pt.s); });
       ctx.restore();
 
+      drawWeather(ctx, currentZone);
+
       const grad = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, canvas.height * 0.28, canvas.width / 2, canvas.height / 2, canvas.width * 0.72);
       grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,0.72)');
       ctx.fillStyle = grad; ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1074,12 +1153,8 @@
 
     document.getElementById('enterWorldBtn').onclick = () => {
       const cls = CLASSES[selectedClass];
-      me.classId = selectedClass;
-      me.name = authUserId;
-      me.equip.weapon = cls.startWpn;
-      const st = getMyStats();
-      me.maxHp = st.maxHp; me.hp = st.maxHp; me.maxMp = st.maxMp; me.mp = st.maxMp;
-
+      me.classId = selectedClass; me.name = authUserId; me.equip.weapon = cls.startWpn;
+      const st = getMyStats(); me.maxHp = st.maxHp; me.hp = st.maxHp; me.maxMp = st.maxMp; me.mp = st.maxMp;
       document.getElementById('leftSkillIcon').textContent = cls.icon;
       document.getElementById('leftSkillName').textContent = cls.skill.slice(0, 4);
       document.getElementById('charSelectScreen').classList.add('hidden');
@@ -1087,7 +1162,6 @@
       document.getElementById('chatWrap').classList.remove('hidden');
       document.getElementById('d2Hud').classList.remove('hidden');
       document.getElementById('mobileControls').classList.remove('hidden');
-
       started = true;
       connectServer();
       enterZone('act1_town');
