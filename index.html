@@ -387,6 +387,9 @@
                 <span id="wr-connection-pill" class="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-[11px] font-bold">
                   🟢 연결됨
                 </span>
+                <button id="btn-wr-reconnect" type="button" class="px-2 py-0.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 text-slate-200 text-[11px] font-bold transition" title="모바일에서 다른 앱 다녀온 뒤 연결 복구">
+                  🔄 연결 유지
+                </button>
                 <span id="wr-role-badge" class="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-200 text-[11px] font-bold">
                   👑 방장
                 </span>
@@ -761,6 +764,35 @@
       const DEFAULT_NAMES = ['나 (Player 1)', '민수', '지은', '도윤', '서연'];
       const AVATARS = ['😎', '🦊', '🐼', '🐯', '🐰', '🐸', '🦁', '🐙'];
       const PEER_PREFIX = 'hula5-kr-room-';
+      const PEER_OPTIONS = {
+        debug: 0,
+        pingInterval: 5000,
+        config: {
+          iceCandidatePoolSize: 10,
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun.cloudflare.com:3478' },
+            { urls: 'stun:global.stun.twilio.com:3478' },
+            {
+              urls: 'turn:openrelay.metered.ca:80',
+              username: 'openrelayproject',
+              credential: 'openrelayproject'
+            },
+            {
+              urls: 'turn:openrelay.metered.ca:443',
+              username: 'openrelayproject',
+              credential: 'openrelayproject'
+            },
+            {
+              urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+              username: 'openrelayproject',
+              credential: 'openrelayproject'
+            }
+          ]
+        }
+      };
 
       class SoundFX {
         constructor() {
@@ -855,6 +887,9 @@
         hostConn: null,  // guest -> host connection
         conns: new Map(), // host: peerId -> DataConnection
         myPeerId: '',
+        wakeLock: null,
+        reconnectTimer: null,
+        joinRetryTimer: null,
         chatMessages: [], // { sender, avatar, text, system, time }
         unreadChat: false,
         room: {
@@ -1229,8 +1264,56 @@
       }
 
       /* ==================== ONLINE NETWORK LAYER (PeerJS) ==================== */
+      function updateConnectionPill(status) {
+        const pill = document.getElementById('wr-connection-pill');
+        if (!pill) return;
+        if (status === 'connected') {
+          pill.textContent = '🟢 연결됨';
+          pill.className = 'px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-[11px] font-bold';
+        } else if (status === 'reconnecting') {
+          pill.textContent = '🟡 재연결 중...';
+          pill.className = 'px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-200 text-[11px] font-bold';
+        } else {
+          pill.textContent = '🔴 연결 끊김';
+          pill.className = 'px-2 py-0.5 rounded-full bg-rose-500/20 border border-rose-400/40 text-rose-200 text-[11px] font-bold';
+        }
+      }
+
+      async function requestScreenWakeLock() {
+        try {
+          if ('wakeLock' in navigator && !net.wakeLock) {
+            net.wakeLock = await navigator.wakeLock.request('screen');
+            net.wakeLock.addEventListener('release', () => { net.wakeLock = null; });
+          }
+        } catch (_) {}
+      }
+
+      function releaseScreenWakeLock() {
+        if (net.wakeLock) {
+          try { net.wakeLock.release(); } catch (_) {}
+          net.wakeLock = null;
+        }
+      }
+
+      function ensurePeerSignalingAlive(showNotice = false) {
+        if (net.mode !== 'online' || !net.peer || net.peer.destroyed) return;
+        if (net.peer.disconnected) {
+          updateConnectionPill('reconnecting');
+          try {
+            net.peer.reconnect();
+            if (showNotice) showToast('시그널링 서버에 다시 연결했습니다.', 'info');
+          } catch (_) {}
+        } else {
+          updateConnectionPill('connected');
+          if (showNotice) showToast('방 연결이 정상 유지 중입니다.', 'success');
+        }
+      }
+
       function cleanupNetwork() {
         clearTimers();
+        releaseScreenWakeLock();
+        if (net.reconnectTimer) { clearTimeout(net.reconnectTimer); net.reconnectTimer = null; }
+        if (net.joinRetryTimer) { clearInterval(net.joinRetryTimer); net.joinRetryTimer = null; }
         if (net.hostConn) {
           try { net.hostConn.close(); } catch (_) {}
           net.hostConn = null;
@@ -1271,7 +1354,7 @@
         setOnlineStatus(`대기실 #${code} 생성 중...`);
 
         try {
-          const peer = new Peer(peerId, { debug: 0 });
+          const peer = new Peer(peerId, PEER_OPTIONS);
           net.peer = peer;
           net.mode = 'online';
           net.role = 'host';
@@ -1279,34 +1362,52 @@
 
           peer.on('open', id => {
             net.myPeerId = id;
-            net.room = {
-              maxPlayers: 5,
-              jokerCount: 2,
-              allowWrap: true,
-              status: 'waiting',
-              seats: [{
-                peerId: 'HOST',
-                name: profile.nickname,
-                avatar: profile.avatar,
-                isAI: false,
-                isHost: true,
-                ready: true
-              }]
-            };
-            setOnlineStatus('');
-            addChatMessage({ system: true, text: `대기실 #${code}이 열렸습니다! 방 코드를 친구들에게 공유하세요.` });
-            openWaitingRoomScreen();
-            sfx.meld();
+            updateConnectionPill('connected');
+            requestScreenWakeLock();
+            if (net.room.seats.length === 0) {
+              net.room = {
+                maxPlayers: 5,
+                jokerCount: 2,
+                allowWrap: true,
+                status: 'waiting',
+                seats: [{
+                  peerId: 'HOST',
+                  name: profile.nickname,
+                  avatar: profile.avatar,
+                  isAI: false,
+                  isHost: true,
+                  ready: true
+                }]
+              };
+              setOnlineStatus('');
+              addChatMessage({ system: true, text: `대기실 #${code}이 열렸습니다! 방 코드를 공유하세요. (폰에서 카톡으로 이동했다 돌아와도 자동 재연결됩니다)` });
+              openWaitingRoomScreen();
+              sfx.meld();
+            }
           });
 
           peer.on('connection', conn => {
             handleHostIncomingConnection(conn);
           });
 
+          peer.on('disconnected', () => {
+            if (net.mode !== 'online' || !net.peer || net.peer.destroyed) return;
+            updateConnectionPill('reconnecting');
+            net.reconnectTimer = setTimeout(() => {
+              if (net.peer && !net.peer.destroyed && net.peer.disconnected) {
+                try { net.peer.reconnect(); } catch (_) {}
+              }
+            }, 1200);
+          });
+
           peer.on('error', err => {
             if (err && err.type === 'unavailable-id') {
-              // Retry once with another 4-digit code
               createOnlineRoom();
+              return;
+            }
+            if (err && (err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error')) {
+              updateConnectionPill('reconnecting');
+              setTimeout(() => ensurePeerSignalingAlive(false), 1500);
               return;
             }
             setOnlineStatus(`연결 오류: ${err && err.message ? err.message : '서버에 접속할 수 없습니다.'}`, true);
@@ -1318,25 +1419,43 @@
       }
 
       function handleHostIncomingConnection(conn) {
+        // Register immediately so data arriving right as open fires is never missed on mobile WebRTC
+        net.conns.set(conn.peer, conn);
+
         conn.on('open', () => {
           net.conns.set(conn.peer, conn);
         });
 
         conn.on('data', msg => {
           if (!msg || typeof msg !== 'object') return;
+          net.conns.set(conn.peer, conn);
+
+          if (msg.type === 'PING') {
+            try { conn.send({ type: 'PONG' }); } catch (_) {}
+            return;
+          }
+
           if (msg.type === 'JOIN') {
+            // If this peer already joined (e.g., retried JOIN packet), just re-sync room state
+            const existing = net.room.seats.find(s => s.peerId === conn.peer);
+            if (existing) {
+              try {
+                conn.send({ type: 'ROOM_SYNC', room: net.room, chatHistory: net.chatMessages.slice(-40) });
+              } catch (_) {}
+              return;
+            }
+
             if (net.room.status !== 'waiting') {
-              conn.send({ type: 'REJECT', reason: '이미 게임이 진행 중인 방입니다.' });
+              try { conn.send({ type: 'REJECT', reason: '이미 게임이 진행 중인 방입니다.' }); } catch (_) {}
               setTimeout(() => { try { conn.close(); } catch (_) {} }, 300);
               return;
             }
             if (net.room.seats.length >= net.room.maxPlayers) {
-              // If there's an AI seat, replace the last AI seat with the joining human!
               const aiIdx = net.room.seats.findIndex(s => s.isAI);
               if (aiIdx !== -1) {
                 net.room.seats.splice(aiIdx, 1);
               } else {
-                conn.send({ type: 'REJECT', reason: `방 정원(${net.room.maxPlayers}명)이 가득 찼습니다.` });
+                try { conn.send({ type: 'REJECT', reason: `방 정원(${net.room.maxPlayers}명)이 가득 찼습니다.` }); } catch (_) {}
                 setTimeout(() => { try { conn.close(); } catch (_) {} }, 300);
                 return;
               }
@@ -1419,39 +1538,63 @@
         saveProfile(profile.nickname, profile.avatar);
 
         cleanupNetwork();
-        setOnlineStatus(`방 #${code}에 연결하는 중...`);
+        setOnlineStatus(`시그널링 서버 접속 중... (방 #${code})`);
 
         try {
-          const peer = new Peer({ debug: 0 });
+          const peer = new Peer(PEER_OPTIONS);
           net.peer = peer;
           net.mode = 'online';
           net.role = 'guest';
           net.roomCode = code;
 
-          let connected = false;
+          let synced = false;
           const timeoutId = setTimeout(() => {
-            if (!connected) {
-              setOnlineStatus(`방 #${code}을(를) 찾을 수 없습니다. 방 코드가 맞는지 확인해주세요.`, true);
+            if (!synced) {
+              setOnlineStatus(`방 #${code} 연결 시간 초과 — 폰 방장이 화면을 켜둔 상태에서 [🔄 연결 유지]를 누른 뒤 다시 시도해주세요.`, true);
               cleanupNetwork();
             }
-          }, 10000);
+          }, 18000);
 
           peer.on('open', id => {
             net.myPeerId = id;
-            const conn = peer.connect(PEER_PREFIX + code, { reliable: true });
+            setOnlineStatus(`방 #${code}에 P2P/릴레이 연결 중... (최대 10초 소요)`);
+            const conn = peer.connect(PEER_PREFIX + code, { reliable: true, serialization: 'json' });
             net.hostConn = conn;
 
+            const sendJoin = () => {
+              if (synced || !conn.open) return;
+              try {
+                conn.send({ type: 'JOIN', name: profile.nickname, avatar: profile.avatar });
+              } catch (_) {}
+            };
+
             conn.on('open', () => {
-              connected = true;
-              clearTimeout(timeoutId);
-              conn.send({ type: 'JOIN', name: profile.nickname, avatar: profile.avatar });
+              setOnlineStatus(`방 #${code} 연결 완료! 입장 동기화 중...`);
+              sendJoin();
+              if (net.joinRetryTimer) clearInterval(net.joinRetryTimer);
+              net.joinRetryTimer = setInterval(() => {
+                if (synced) {
+                  clearInterval(net.joinRetryTimer);
+                  net.joinRetryTimer = null;
+                } else {
+                  sendJoin();
+                }
+              }, 1800);
             });
 
             conn.on('data', msg => {
+              if (msg && msg.type === 'ROOM_SYNC') {
+                synced = true;
+                clearTimeout(timeoutId);
+                if (net.joinRetryTimer) { clearInterval(net.joinRetryTimer); net.joinRetryTimer = null; }
+                updateConnectionPill('connected');
+              }
               handleGuestMessage(msg);
             });
 
             conn.on('close', () => {
+              clearTimeout(timeoutId);
+              if (net.joinRetryTimer) { clearInterval(net.joinRetryTimer); net.joinRetryTimer = null; }
               if (net.mode === 'online') {
                 showToast('방장과의 연결이 종료되었습니다.', 'error');
                 returnToLobby();
@@ -1460,13 +1603,17 @@
 
             conn.on('error', () => {
               clearTimeout(timeoutId);
-              setOnlineStatus('방에 연결하지 못했습니다. 방 코드를 다시 확인해주세요.', true);
+              setOnlineStatus('방에 연결하지 못했습니다. 방 코드를 확인하고 다시 시도해주세요.', true);
             });
           });
 
           peer.on('error', err => {
             clearTimeout(timeoutId);
-            setOnlineStatus(`연결 실패: ${err && err.type === 'peer-unavailable' ? '존재하지 않는 방 코드입니다.' : '네트워크 상태를 확인해주세요.'}`, true);
+            if (err && err.type === 'peer-unavailable') {
+              setOnlineStatus(`방 #${code}을(를) 찾을 수 없습니다. 방장이 대기실 화면을 유지 중인지 확인해주세요.`, true);
+            } else {
+              setOnlineStatus(`연결 실패: ${err && err.message ? err.message : '네트워크 상태를 확인해주세요.'}`, true);
+            }
           });
         } catch (_) {
           setOnlineStatus('연결을 시작할 수 없습니다.', true);
@@ -3109,6 +3256,18 @@
       });
 
       // Waiting Room Controls
+      document.getElementById('btn-wr-reconnect').addEventListener('click', () => {
+        ensurePeerSignalingAlive(true);
+        requestScreenWakeLock();
+      });
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && net.mode === 'online') {
+          ensurePeerSignalingAlive(false);
+          if (net.role === 'host') requestScreenWakeLock();
+        }
+      });
+
       document.getElementById('btn-copy-code').addEventListener('click', () => {
         copyTextToClipboard(net.roomCode, `방 코드 [${net.roomCode}] 복사 완료!`);
       });
