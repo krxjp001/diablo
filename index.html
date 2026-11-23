@@ -395,7 +395,7 @@
                 <span class="text-xs font-bold text-emerald-200">방 규칙 설정</span>
                 <span id="wr-rules-lock-hint" class="text-[10px] text-slate-400">방장만 변경 가능</span>
               </div>
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
                 <div>
                   <span class="block text-[10px] text-slate-400 mb-1">최대 인원</span>
                   <div id="wr-max-players-btns" class="grid grid-cols-4 gap-1">
@@ -420,7 +420,17 @@
                     <button type="button" data-wr-wrap="false" class="wr-wrap-btn py-1 rounded font-bold border">끄기</button>
                   </div>
                 </div>
+                <div>
+                  <span class="block text-[10px] text-slate-400 mb-1">기본 포인트 (순위당 차등)</span>
+                  <div id="wr-step-btns" class="grid grid-cols-4 gap-1">
+                    <button type="button" data-wr-step="100" class="wr-step-btn py-1 rounded font-bold border">100</button>
+                    <button type="button" data-wr-step="500" class="wr-step-btn py-1 rounded font-bold border">500</button>
+                    <button type="button" data-wr-step="1000" class="wr-step-btn py-1 rounded font-bold border">1천</button>
+                    <button type="button" data-wr-step="2000" class="wr-step-btn py-1 rounded font-bold border">2천</button>
+                  </div>
+                </div>
               </div>
+              <p id="wr-step-preview" class="text-[11px] text-amber-200/85 mt-2 font-medium"></p>
             </div>
           </div>
 
@@ -844,6 +854,7 @@
           maxPlayers: 2,
           jokerCount: 0,
           allowWrap: true,
+          baseStep: 500,
           status: 'waiting', // 'waiting' | 'playing'
           seats: [] // { peerId, name, avatar, isAI, isHost, ready }
         }
@@ -1455,6 +1466,7 @@
                   maxPlayers: 2,
                   jokerCount: 0,
                   allowWrap: true,
+                  baseStep: 500,
                   status: 'waiting',
                   seats: [{
                     peerId: 'HOST',
@@ -1531,6 +1543,7 @@
                   maxPlayers: 2,
                   jokerCount: 0,
                   allowWrap: true,
+                  baseStep: 500,
                   status: 'waiting',
                   seats: [{
                     peerId: 'HOST',
@@ -2001,7 +2014,8 @@
             lastResultModal: state.phase === 'round_over' ? state.lastResultModal : null,
             rules: {
               allowWrap: net.room.allowWrap,
-              jokerCount: net.room.jokerCount
+              jokerCount: net.room.jokerCount,
+              baseStep: net.room.baseStep || 500
             }
           };
 
@@ -2022,6 +2036,7 @@
         net.room.status = 'playing';
         net.room.allowWrap = vs.rules.allowWrap;
         net.room.jokerCount = vs.rules.jokerCount;
+        net.room.baseStep = vs.rules.baseStep || 500;
 
         state.screen = 'game';
         state.round = vs.round;
@@ -2260,6 +2275,23 @@
             active ? 'bg-emerald-400 text-slate-950 border-emerald-300' : 'bg-white/5 text-slate-300 border-white/10'
           } ${btn.disabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white/15'}`;
         });
+        const curStep = Number(net.room.baseStep) || 500;
+        document.querySelectorAll('.wr-step-btn').forEach(btn => {
+          const v = Number(btn.dataset.wrStep);
+          const active = v === curStep;
+          btn.disabled = !isHost;
+          btn.className = `wr-step-btn py-1 rounded font-bold border transition ${
+            active ? 'bg-amber-400 text-slate-950 border-amber-300' : 'bg-white/5 text-slate-300 border-white/10'
+          } ${btn.disabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white/15'}`;
+        });
+        const previewEl = document.getElementById('wr-step-preview');
+        if (previewEl) {
+          const parts = [];
+          for (let r = 2; r <= net.room.maxPlayers; r++) {
+            parts.push(`${r}등 -${((r - 1) * curStep).toLocaleString('ko-KR')}P`);
+          }
+          previewEl.textContent = `정산 미리보기: 1등 우승 / ${parts.join(' / ')}`;
+        }
 
         // Footer buttons
         const startBtn = document.getElementById('btn-host-start-online');
@@ -2757,7 +2789,7 @@
         others.forEach((o, pos) => {
           const rank = pos + 2; // 2, 3, 4, 5
           ranks[o.idx] = rank;
-          const baseLoss = (rank - 1) * RANK_BASE_STEP;
+          const baseLoss = (rank - 1) * (Number(net.room.baseStep) || RANK_BASE_STEP);
           const bagajiMult = (applyBagaji && !o.melded) ? 2 : 1;
           const loss = baseLoss * hulaMult * bagajiMult;
 
@@ -3498,6 +3530,15 @@
         btn.addEventListener('click', () => {
           if (net.role !== 'host') return;
           net.room.allowWrap = btn.dataset.wrWrap === 'true';
+          sfx.select();
+          broadcastRoomState();
+        });
+      });
+
+      document.querySelectorAll('.wr-step-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (net.role !== 'host') return;
+          net.room.baseStep = Number(btn.dataset.wrStep) || 500;
           sfx.select();
           broadcastRoomState();
         });
