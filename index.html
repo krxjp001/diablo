@@ -1385,8 +1385,8 @@
       }
 
       function createOnlineRoom() {
-        if (typeof mqtt === 'undefined') {
-          setOnlineStatus('실시간 연결 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인해주세요.', true);
+        if (typeof WebSocket === 'undefined') {
+          setOnlineStatus('이 브라우저에서는 WebSocket을 지원하지 않습니다.', true);
           return;
         }
         const nick = document.getElementById('input-nickname').value.trim() || profile.nickname;
@@ -1654,8 +1654,8 @@
       }
 
       function joinOnlineRoom(rawCode) {
-        if (typeof mqtt === 'undefined') {
-          setOnlineStatus('실시간 연결 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인해주세요.', true);
+        if (typeof WebSocket === 'undefined') {
+          setOnlineStatus('이 브라우저에서는 WebSocket을 지원하지 않습니다.', true);
           return;
         }
         const code = String(rawCode || '').replace(/\D/g, '').slice(0, 4);
