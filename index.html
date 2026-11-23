@@ -53,9 +53,9 @@
     /* Playing Card Styling */
     .playing-card {
       position: relative;
-      width: 68px;
-      height: 98px;
-      border-radius: 9px;
+      width: 64px;
+      height: 92px;
+      border-radius: 8px;
       background: linear-gradient(165deg, #ffffff 0%, #f8fafc 75%, #eef2f6 100%);
       border: 1.5px solid #cbd5e1;
       box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.9);
@@ -74,16 +74,22 @@
     }
 
     .playing-card:hover:not(.card-disabled) {
-      transform: translateY(-8px);
+      transform: translateY(-6px);
       box-shadow: 0 10px 20px rgba(0, 0, 0, 0.45);
       z-index: 20;
     }
 
     .playing-card.selected {
-      transform: translateY(-18px) scale(1.03);
+      transform: translateY(-9px) scale(1.03);
       border-color: #f59e0b;
-      box-shadow: 0 0 0 2.5px #fbbf24, 0 14px 24px rgba(245, 158, 11, 0.4);
+      box-shadow: 0 0 0 2.5px #fbbf24, 0 10px 20px rgba(245, 158, 11, 0.45);
       z-index: 30;
+    }
+
+    @media (min-width: 640px) {
+      .playing-card.selected {
+        transform: translateY(-18px) scale(1.03);
+      }
     }
 
     .playing-card.hint-glow {
@@ -550,7 +556,7 @@
           </div>
         </div>
 
-        <div id="player-hand-area" class="flex items-end justify-start sm:justify-center gap-1 sm:gap-1.5 overflow-x-auto pt-5 pb-2 px-1 min-h-[126px] sm:min-h-[140px]"></div>
+        <div id="player-hand-area" class="flex flex-wrap items-end justify-center gap-x-1.5 gap-y-2.5 sm:gap-2 overflow-visible pt-3 sm:pt-5 pb-2 px-0.5 min-h-[112px] sm:min-h-[140px]"></div>
 
         <div class="mt-2 pt-2.5 border-t border-white/10 flex flex-wrap items-center justify-between gap-2">
           <div id="selection-feedback" class="text-xs text-emerald-200/90 font-medium min-h-[18px]">
@@ -3007,7 +3013,7 @@
         const isSeven = card.rank === 7;
         const centerBadge = isCourt
           ? `<span class="${mini ? 'text-base' : 'text-2xl sm:text-3xl'} font-black leading-none">${rankStr}</span><span class="${mini ? 'text-[10px]' : 'text-sm'} leading-none">${meta.symbol}</span>`
-          : `<span class="${mini ? 'text-xl' : 'text-3xl sm:text-4xl'} leading-none">${meta.symbol}</span>`;
+          : `<span class="${mini ? 'text-xl' : 'text-2xl sm:text-4xl'} leading-none">${meta.symbol}</span>`;
 
         return `
           <div class="${classes} ${meta.colorClass} flex flex-col justify-between p-1 sm:p-1.5" data-card-id="${card.id}">
