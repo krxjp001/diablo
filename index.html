@@ -4,6 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>훌라 5 (HULA 5) — 최대 5인 온라인 대기실 &amp; 훌라 카드게임</title>
+  <meta name="theme-color" content="#071910" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="훌라 5" />
+  <link id="pwa-apple-icon" rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%230b2f1d'/%3E%3Crect x='14' y='14' width='164' height='164' rx='30' fill='none' stroke='%23f59e0b' stroke-width='8'/%3E%3Ctext x='96' y='124' text-anchor='middle' font-size='104' font-weight='900' fill='%23fbbf24' font-family='sans-serif'%3E7%3C/text%3E%3C/svg%3E" />
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -321,6 +327,18 @@
 
           <div id="online-connect-status" class="hidden text-center text-xs font-bold text-amber-300 bg-amber-500/10 border border-amber-400/30 rounded-xl py-2.5 px-3">
             연결 중...
+          </div>
+
+          <!-- PWA Home Screen Shortcut & Fullscreen Bar -->
+          <div id="pwa-install-bar" class="pt-2 border-t border-white/10 flex flex-col sm:flex-row gap-2">
+            <button id="btn-install-pwa" type="button" class="flex-1 py-2.5 px-4 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/40 text-emerald-200 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition">
+              <span>📲</span>
+              <span id="btn-install-pwa-label">홈 화면 바로가기 설치 (전체화면)</span>
+            </button>
+            <button id="btn-fullscreen-now" type="button" class="py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-slate-200 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition shrink-0">
+              <span>⛶</span>
+              <span id="btn-fullscreen-label">지금 전체화면</span>
+            </button>
           </div>
         </div>
 
@@ -695,6 +713,20 @@
           <p class="text-slate-300">A = 1점, 2~10 = 숫자 그대로, J = 11점, Q = 12점, K = 13점, 조커 = 20점. 승자는 패자들의 남은 손패 점수를 모두 획득하며, 훌라 승리 시 2배, 미등록 패자(바가지)에게서 2배가 적용됩니다.</p>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- PWA INSTALL GUIDE MODAL -->
+  <div id="install-guide-modal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="max-w-md w-full bg-slate-950 border border-emerald-400/40 rounded-2xl p-5 shadow-2xl animate-fade-up">
+      <div class="flex items-center justify-between pb-3 border-b border-white/10">
+        <h3 class="text-base font-black text-emerald-200">📲 홈 화면 바로가기 설치 방법</h3>
+        <button id="btn-close-install-guide" type="button" class="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-slate-200 font-bold">✕</button>
+      </div>
+      <div id="install-guide-body" class="mt-3.5 space-y-3 text-xs sm:text-sm text-slate-200 leading-relaxed"></div>
+      <button id="btn-install-guide-ok" type="button" class="mt-5 w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm transition">
+        확인
+      </button>
     </div>
   </div>
 
@@ -3683,6 +3715,203 @@
           if (e.target.id === id) e.currentTarget.classList.add('hidden');
         });
       });
+
+      /* ==================== PWA SHORTCUT INSTALL & FULLSCREEN ==================== */
+      let deferredInstallPrompt = null;
+
+      function createPwaIconDataUrl(size) {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return null;
+          ctx.fillStyle = '#0b2f1d';
+          ctx.fillRect(0, 0, size, size);
+          const pad = Math.round(size * 0.08);
+          ctx.strokeStyle = '#f59e0b';
+          ctx.lineWidth = Math.max(4, Math.round(size * 0.045));
+          ctx.strokeRect(pad, pad, size - pad * 2, size - pad * 2);
+          ctx.fillStyle = '#fbbf24';
+          ctx.font = `900 ${Math.round(size * 0.56)}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('7', size / 2, size * 0.53);
+          return canvas.toDataURL('image/png');
+        } catch (_) {
+          return null;
+        }
+      }
+
+      function setupDynamicManifest() {
+        try {
+          const icon192 = createPwaIconDataUrl(192);
+          const icon512 = createPwaIconDataUrl(512);
+          if (icon192) {
+            const appleLink = document.getElementById('pwa-apple-icon');
+            if (appleLink) appleLink.href = icon192;
+          }
+          const manifest = {
+            name: '훌라 5 (HULA 5)',
+            short_name: '훌라 5',
+            description: '최대 5인 실시간 한국식 훌라 카드게임',
+            start_url: window.location.href.split('?')[0],
+            display: 'standalone',
+            orientation: 'portrait',
+            background_color: '#071910',
+            theme_color: '#071910',
+            icons: [
+              icon192 ? { src: icon192, sizes: '192x192', type: 'image/png', purpose: 'any maskable' } : null,
+              icon512 ? { src: icon512, sizes: '512x512', type: 'image/png', purpose: 'any maskable' } : null
+            ].filter(Boolean)
+          };
+          const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('link');
+          link.rel = 'manifest';
+          link.href = url;
+          document.head.appendChild(link);
+        } catch (_) {}
+      }
+
+      function isRunningStandalone() {
+        return (
+          (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+          window.navigator.standalone === true
+        );
+      }
+
+      function updatePwaInstallUI() {
+        const bar = document.getElementById('pwa-install-bar');
+        const btnInstall = document.getElementById('btn-install-pwa');
+        const labelInstall = document.getElementById('btn-install-pwa-label');
+        if (!bar || !btnInstall) return;
+
+        if (isRunningStandalone()) {
+          btnInstall.classList.add('hidden');
+        } else if (deferredInstallPrompt) {
+          labelInstall.textContent = '홈 화면에 앱 바로 설치 (전체화면)';
+        } else {
+          labelInstall.textContent = '홈 화면 바로가기 설치 (전체화면)';
+        }
+
+        const fsBtn = document.getElementById('btn-fullscreen-now');
+        const fsLabel = document.getElementById('btn-fullscreen-label');
+        const canFs = Boolean(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+        if (!canFs || isRunningStandalone()) {
+          fsBtn.classList.add('hidden');
+          if (isRunningStandalone()) bar.classList.add('hidden');
+        } else {
+          const isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+          fsLabel.textContent = isFs ? '전체화면 종료' : '지금 전체화면';
+        }
+      }
+
+      function openInstallGuideModal() {
+        const ua = navigator.userAgent || '';
+        const isIOS = /iPhone|iPad|iPod/i.test(ua);
+        const isSamsung = /SamsungBrowser/i.test(ua);
+        const body = document.getElementById('install-guide-body');
+
+        if (isIOS) {
+          body.innerHTML = `
+            <div class="bg-white/5 border border-white/10 rounded-xl p-3">
+              <p class="font-bold text-amber-300 mb-1.5">아이폰 (Safari) 설치 방법</p>
+              <ol class="list-decimal pl-4 space-y-1.5 text-slate-300">
+                <li>화면 아래쪽 가운데의 <strong>공유 버튼(⎋)</strong>을 누르세요.</li>
+                <li>메뉴를 아래로 내려 <strong>[홈 화면에 추가]</strong>를 선택하세요.</li>
+                <li>오른쪽 위 <strong>[추가]</strong>를 누르면 홈 화면에 아이콘이 생기며, 실행 시 주소창 없는 <strong>전체화면</strong>으로 열립니다!</li>
+              </ol>
+            </div>
+          `;
+        } else if (isSamsung) {
+          body.innerHTML = `
+            <div class="bg-white/5 border border-white/10 rounded-xl p-3">
+              <p class="font-bold text-amber-300 mb-1.5">삼성 인터넷 설치 방법</p>
+              <ol class="list-decimal pl-4 space-y-1.5 text-slate-300">
+                <li>오른쪽 아래 <strong>메뉴(≡)</strong> 버튼을 누르세요.</li>
+                <li><strong>[현재 페이지 추가] → [홈 화면]</strong>을 선택하세요.</li>
+                <li>생성된 <strong>훌라 5</strong> 아이콘으로 실행하면 주소창 없는 전체화면으로 실행됩니다!</li>
+              </ol>
+            </div>
+          `;
+        } else {
+          body.innerHTML = `
+            <div class="bg-white/5 border border-white/10 rounded-xl p-3">
+              <p class="font-bold text-amber-300 mb-1.5">안드로이드 (Chrome) / PC 설치 방법</p>
+              <ol class="list-decimal pl-4 space-y-1.5 text-slate-300">
+                <li>브라우저 오른쪽 위 <strong>점 3개(⋮)</strong> 메뉴를 누르세요.</li>
+                <li><strong>[홈 화면에 추가]</strong> 또는 <strong>[앱 설치]</strong>를 누르세요.</li>
+                <li>홈 화면에 생긴 <strong>훌라 5</strong> 아이콘으로 접속하면 주소창 없는 <strong>전체화면</strong>으로 실행됩니다!</li>
+              </ol>
+            </div>
+          `;
+        }
+        document.getElementById('install-guide-modal').classList.remove('hidden');
+      }
+
+      window.addEventListener('beforeinstallprompt', e => {
+        e.preventDefault();
+        deferredInstallPrompt = e;
+        updatePwaInstallUI();
+      });
+
+      window.addEventListener('appinstalled', () => {
+        deferredInstallPrompt = null;
+        showToast('홈 화면에 훌라 5 바로가기가 설치되었습니다!', 'success');
+        updatePwaInstallUI();
+      });
+
+      document.getElementById('btn-install-pwa').addEventListener('click', async () => {
+        sfx.select();
+        if (deferredInstallPrompt) {
+          try {
+            deferredInstallPrompt.prompt();
+            const choice = await deferredInstallPrompt.userChoice;
+            if (choice && choice.outcome === 'accepted') {
+              deferredInstallPrompt = null;
+              updatePwaInstallUI();
+            }
+          } catch (_) {
+            openInstallGuideModal();
+          }
+        } else {
+          openInstallGuideModal();
+        }
+      });
+
+      document.getElementById('btn-fullscreen-now').addEventListener('click', () => {
+        sfx.select();
+        const el = document.documentElement;
+        const isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+        try {
+          if (isFs) {
+            if (document.exitFullscreen) document.exitFullscreen();
+            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+          } else {
+            if (el.requestFullscreen) el.requestFullscreen();
+            else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+          }
+        } catch (_) {
+          showToast('이 브라우저에서는 홈 화면 추가 후 실행 시 전체화면이 적용됩니다.', 'info');
+        }
+      });
+
+      document.addEventListener('fullscreenchange', updatePwaInstallUI);
+      document.addEventListener('webkitfullscreenchange', updatePwaInstallUI);
+
+      document.getElementById('btn-close-install-guide').addEventListener('click', () => {
+        document.getElementById('install-guide-modal').classList.add('hidden');
+      });
+      document.getElementById('btn-install-guide-ok').addEventListener('click', () => {
+        document.getElementById('install-guide-modal').classList.add('hidden');
+      });
+      document.getElementById('install-guide-modal').addEventListener('click', e => {
+        if (e.target.id === 'install-guide-modal') e.currentTarget.classList.add('hidden');
+      });
+
+      setupDynamicManifest();
+      updatePwaInstallUI();
 
       // Auto-fill room code from URL query (?room=1234)
       function checkUrlRoomParam() {
