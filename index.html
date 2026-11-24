@@ -222,6 +222,9 @@
     </div>
 
     <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+      <span id="header-user-badge" class="hidden px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-400/40 text-xs font-extrabold text-amber-200">
+        ID · 50,000P
+      </span>
       <span id="room-code-header-badge" class="hidden px-2.5 py-1 rounded-full bg-sky-950/90 border border-sky-400/40 text-xs font-black text-sky-200">
         방 #0000
       </span>
@@ -244,8 +247,11 @@
       <button id="btn-sound" type="button" class="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10 text-xs font-semibold text-amber-300 transition" title="효과음 켜기/끄기">
         🔊
       </button>
-      <button id="btn-lobby" type="button" class="px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-xs font-bold text-amber-200 transition">
+      <button id="btn-lobby" type="button" class="hidden px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-xs font-bold text-amber-200 transition">
         로비
+      </button>
+      <button id="btn-logout" type="button" class="hidden px-2.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/40 text-xs font-bold text-rose-200 transition">
+        로그아웃
       </button>
     </div>
   </header>
@@ -256,8 +262,81 @@
   <!-- Main Content Area -->
   <main class="flex-1 flex flex-col relative table-rim overflow-hidden">
 
+    <!-- ==================== LOGIN SCREEN ==================== -->
+    <section id="login-screen" class="flex-1 flex items-center justify-center p-4 sm:p-6">
+      <div class="w-full max-w-md bg-slate-950/88 backdrop-blur-xl border border-amber-500/35 rounded-2xl shadow-2xl p-5 sm:p-7 animate-fade-up">
+        <div class="text-center pb-4 border-b border-white/10">
+          <div class="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg text-slate-950 font-black text-2xl mb-3">
+            7
+          </div>
+          <span class="inline-block px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/35 text-emerald-200 text-[11px] font-bold mb-1.5">
+            신규 ID 발급 시 50,000P 즉시 지급
+          </span>
+          <h2 class="text-2xl font-black text-white tracking-tight">훌라 5 로그인</h2>
+          <p class="text-xs text-slate-300 mt-1">발급받은 ID와 5자리 비밀번호로 로그인하면 보유 포인트가 유지됩니다.</p>
+        </div>
+
+        <form id="login-form" class="mt-5 space-y-3.5">
+          <div>
+            <label for="login-id" class="block text-xs font-bold text-amber-300 mb-1.5">ID</label>
+            <input id="login-id" type="text" maxlength="12" autocomplete="username" placeholder="ID 입력 (발급 시 원하는 ID 또는 비워두기)"
+              class="w-full bg-slate-900/95 border border-white/15 focus:border-amber-400 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none transition" />
+          </div>
+
+          <div>
+            <label for="login-pw" class="block text-xs font-bold text-amber-300 mb-1.5">비밀번호</label>
+            <div class="relative">
+              <input id="login-pw" type="password" maxlength="10" autocomplete="current-password" placeholder="영문+숫자 5자리 비밀번호"
+                class="w-full bg-slate-900/95 border border-white/15 focus:border-amber-400 rounded-xl pl-3.5 pr-12 py-2.5 text-sm font-mono font-bold tracking-widest text-white outline-none transition" />
+              <button id="btn-toggle-pw-vis" type="button" class="absolute right-2.5 top-1/2 -translate-y-1/2 px-2 py-1 rounded-lg text-xs font-bold text-slate-300 hover:text-white hover:bg-white/10 transition" title="비밀번호 보기/숨기기">
+                👁
+              </button>
+            </div>
+          </div>
+
+          <div class="pt-1 flex flex-col gap-2.5">
+            <button id="btn-login" type="submit" class="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-sm shadow-lg shadow-amber-500/20 transition active:scale-[0.99]">
+              로그인
+            </button>
+            <button id="btn-issue-id" type="button" class="w-full py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/45 text-emerald-200 font-black text-sm transition active:scale-[0.99]">
+              ✨ ID 발급받기 (50,000P 지급)
+            </button>
+          </div>
+        </form>
+
+        <div id="login-status" class="hidden mt-3.5 text-center text-xs font-bold rounded-xl py-2.5 px-3"></div>
+
+        <!-- Newly Issued Account Box -->
+        <div id="issued-account-box" class="hidden mt-4 bg-emerald-950/70 border border-emerald-400/50 rounded-2xl p-4 space-y-3 animate-fade-up">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-black text-emerald-300">🎉 새 ID 발급 완료!</span>
+            <span class="px-2 py-0.5 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-200 text-[11px] font-black">50,000P 지급</span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 bg-black/40 rounded-xl p-3 border border-white/10">
+            <div>
+              <div class="text-[10px] font-bold text-slate-400">발급된 ID</div>
+              <div id="issued-id-val" class="text-base font-black text-white tracking-wide mt-0.5">-</div>
+            </div>
+            <div>
+              <div class="text-[10px] font-bold text-slate-400">비밀번호 (5자리)</div>
+              <div id="issued-pw-val" class="text-base font-mono font-black text-amber-300 tracking-widest mt-0.5">-</div>
+            </div>
+          </div>
+          <p class="text-[11px] text-emerald-200/80 leading-relaxed">다음 접속 시 위 ID와 비밀번호를 입력하면 보유 포인트가 그대로 유지됩니다.</p>
+          <div class="flex gap-2">
+            <button id="btn-copy-issued" type="button" class="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-xs font-bold text-slate-100 transition">
+              📋 ID/비번 복사
+            </button>
+            <button id="btn-use-issued" type="button" class="flex-1 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black transition">
+              바로 입장하기 →
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ==================== LOBBY SCREEN ==================== -->
-    <section id="lobby-screen" class="flex-1 flex items-center justify-center p-4 sm:p-6">
+    <section id="lobby-screen" class="hidden flex-1 flex items-center justify-center p-4 sm:p-6">
       <div class="w-full max-w-2xl bg-slate-950/85 backdrop-blur-xl border border-amber-500/30 rounded-2xl shadow-2xl p-5 sm:p-7 animate-fade-up">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/10">
           <div>
@@ -285,14 +364,22 @@
 
         <!-- TAB 1: ONLINE MULTIPLAYER PANEL -->
         <div id="panel-online-mode" class="mt-5 space-y-4">
-          <!-- Profile (Nickname & Avatar) -->
-          <div class="bg-white/5 border border-white/10 rounded-xl p-3.5">
-            <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-2">내 프로필</label>
-            <div class="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center">
-              <div id="avatar-picker" class="flex items-center gap-1.5 flex-wrap"></div>
-              <input id="input-nickname" type="text" maxlength="10" placeholder="닉네임 입력 (예: 민수)"
-                class="flex-1 bg-slate-900/90 border border-white/15 focus:border-amber-400 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none transition" />
+          <!-- Logged-in Account Strip -->
+          <div class="flex flex-wrap items-center justify-between gap-2 bg-white/5 border border-amber-400/25 rounded-xl px-4 py-2.5">
+            <div class="flex items-center gap-3 flex-wrap">
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-bold text-slate-400">접속 ID</span>
+                <span id="lobby-user-id" class="text-sm font-black text-white">-</span>
+              </div>
+              <span class="text-white/20">|</span>
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-bold text-slate-400">보유 포인트</span>
+                <span id="lobby-user-points" class="text-sm font-black text-amber-300">50,000P</span>
+              </div>
             </div>
+            <button id="btn-lobby-logout" type="button" class="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-rose-500/25 border border-white/10 hover:border-rose-400/40 text-xs font-bold text-slate-200 transition">
+              로그아웃
+            </button>
           </div>
 
           <!-- Create vs Join Room -->
@@ -789,25 +876,310 @@
       }
       const sfx = new SoundFX();
 
-      /* ==================== PROFILE & CONFIG ==================== */
-      function loadSavedProfile() {
+      /* ==================== AUTH & ACCOUNT DB ==================== */
+      const INITIAL_POINTS = 50000;
+      const AUTH_DB_KEY = 'hula5_accounts_db_v1';
+      let memoryAccountsDB = {};
+
+      const auth = {
+        user: null, // { id, points }
+        lastIssued: null, // { id, password, points }
+        lastSettledRoundKey: ''
+      };
+
+      const profile = {
+        nickname: '',
+        avatar: '👤'
+      };
+
+      function loadLocalDB() {
         try {
-          const raw = localStorage.getItem('hula5_profile');
-          if (raw) return JSON.parse(raw);
+          const raw = localStorage.getItem(AUTH_DB_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object') {
+              memoryAccountsDB = parsed;
+              return parsed;
+            }
+          }
         } catch (_) {}
-        return { nickname: '', avatar: AVATARS[0] };
+        return memoryAccountsDB;
       }
-      function saveProfile(nickname, avatar) {
+
+      function saveLocalDB(db) {
+        memoryAccountsDB = db;
         try {
-          localStorage.setItem('hula5_profile', JSON.stringify({ nickname, avatar }));
+          localStorage.setItem(AUTH_DB_KEY, JSON.stringify(db));
         } catch (_) {}
       }
 
-      const savedProfile = loadSavedProfile();
-      const profile = {
-        nickname: savedProfile.nickname || `유저${Math.floor(10 + Math.random() * 89)}`,
-        avatar: savedProfile.avatar || AVATARS[0]
+      function generatePassword5() {
+        const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+        const digits = '23456789';
+        // Mix of 3 letters + 2 digits (always contains both letters & numbers, length 5)
+        const chars = [
+          letters[Math.floor(Math.random() * letters.length)],
+          letters[Math.floor(Math.random() * letters.length)],
+          letters[Math.floor(Math.random() * letters.length)],
+          digits[Math.floor(Math.random() * digits.length)],
+          digits[Math.floor(Math.random() * digits.length)]
+        ];
+        for (let i = chars.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [chars[i], chars[j]] = [chars[j], chars[i]];
+        }
+        return chars.join('');
+      }
+
+      function generateAutoId(db) {
+        for (let tries = 0; tries < 50; tries++) {
+          const candidate = `HULA${Math.floor(1000 + Math.random() * 9000)}`;
+          if (!db[candidate]) return candidate;
+        }
+        return `HULA${Date.now().toString().slice(-4)}`;
+      }
+
+      function wsAuthRequest(payload, timeoutMs = 1300) {
+        return new Promise(resolve => {
+          if (typeof WebSocket === 'undefined') {
+            resolve(null);
+            return;
+          }
+          let done = false;
+          let ws = null;
+          const finish = res => {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            try { if (ws) ws.close(); } catch (_) {}
+            resolve(res);
+          };
+          const timer = setTimeout(() => finish(null), timeoutMs);
+          try {
+            ws = new WebSocket(DEFAULT_CUSTOM_WS_URL);
+            ws.onopen = () => {
+              try { ws.send(JSON.stringify(payload)); } catch (_) { finish(null); }
+            };
+            ws.onmessage = ev => {
+              let msg;
+              try { msg = JSON.parse(ev.data); } catch (_) { return; }
+              if (msg && (msg.t === 'hula_auth_ok' || msg.t === 'hula_auth_err')) {
+                finish(msg);
+              }
+            };
+            ws.onerror = () => finish(null);
+            ws.onclose = () => finish(null);
+          } catch (_) {
+            finish(null);
+          }
+        });
+      }
+
+      const AccountDB = {
+        async issueAccount(requestedId) {
+          const db = loadLocalDB();
+          const cleanReq = String(requestedId || '').trim();
+          let id = cleanReq;
+
+          if (id) {
+            if (id.length < 2 || id.length > 12) {
+              return { ok: false, error: 'ID는 2~12자 이내로 입력해주세요.' };
+            }
+            if (/\s/.test(id)) {
+              return { ok: false, error: 'ID에는 공백을 사용할 수 없습니다.' };
+            }
+          } else {
+            id = generateAutoId(db);
+          }
+
+          const password = generatePassword5();
+
+          // Try server DB first if server supports auth messages
+          const remote = await wsAuthRequest({
+            t: 'hula_auth_register',
+            id,
+            password,
+            points: INITIAL_POINTS
+          });
+
+          if (remote && remote.t === 'hula_auth_err') {
+            return { ok: false, error: remote.reason || '이미 사용 중인 ID입니다.' };
+          }
+          if (remote && remote.t === 'hula_auth_ok' && remote.user) {
+            db[remote.user.id] = {
+              id: remote.user.id,
+              password: remote.user.password || password,
+              points: Number(remote.user.points ?? INITIAL_POINTS),
+              createdAt: Date.now()
+            };
+            saveLocalDB(db);
+            return {
+              ok: true,
+              user: { id: remote.user.id, password: remote.user.password || password, points: Number(remote.user.points ?? INITIAL_POINTS) },
+              source: 'server'
+            };
+          }
+
+          // Local DB fallback
+          if (db[id]) {
+            return { ok: false, error: '이미 사용 중인 ID입니다. 다른 ID를 입력하거나 비워두고 발급받으세요.' };
+          }
+          db[id] = {
+            id,
+            password,
+            points: INITIAL_POINTS,
+            createdAt: Date.now()
+          };
+          saveLocalDB(db);
+          return {
+            ok: true,
+            user: { id, password, points: INITIAL_POINTS },
+            source: 'local'
+          };
+        },
+
+        async login(rawId, rawPw) {
+          const id = String(rawId || '').trim();
+          const pw = String(rawPw || '').trim();
+          if (!id || !pw) {
+            return { ok: false, error: 'ID와 비밀번호를 모두 입력해주세요.' };
+          }
+
+          // Try server DB first
+          const remote = await wsAuthRequest({
+            t: 'hula_auth_login',
+            id,
+            password: pw
+          });
+
+          const db = loadLocalDB();
+          if (remote && remote.t === 'hula_auth_err') {
+            return { ok: false, error: remote.reason || 'ID 또는 비밀번호가 올바르지 않습니다.' };
+          }
+          if (remote && remote.t === 'hula_auth_ok' && remote.user) {
+            db[remote.user.id] = {
+              id: remote.user.id,
+              password: pw.toUpperCase(),
+              points: Number(remote.user.points ?? INITIAL_POINTS),
+              updatedAt: Date.now()
+            };
+            saveLocalDB(db);
+            return {
+              ok: true,
+              user: { id: remote.user.id, points: Number(remote.user.points ?? INITIAL_POINTS) },
+              source: 'server'
+            };
+          }
+
+          // Local DB lookup
+          const acc = db[id];
+          if (!acc) {
+            return { ok: false, error: '등록되지 않은 ID입니다. 먼저 [ID 발급받기]로 계정을 생성해주세요.' };
+          }
+          if (String(acc.password).toUpperCase() !== pw.toUpperCase()) {
+            return { ok: false, error: '비밀번호가 일치하지 않습니다.' };
+          }
+          return {
+            ok: true,
+            user: { id: acc.id, points: Number(acc.points ?? INITIAL_POINTS) },
+            source: 'local'
+          };
+        },
+
+        async addPoints(id, delta) {
+          if (!id || !Number.isFinite(delta) || delta === 0) return;
+          const db = loadLocalDB();
+          if (db[id]) {
+            db[id].points = Number(db[id].points ?? INITIAL_POINTS) + delta;
+            db[id].updatedAt = Date.now();
+            saveLocalDB(db);
+          }
+          // Best-effort sync to server DB
+          wsAuthRequest({ t: 'hula_auth_update_points', id, delta }, 1000);
+        }
       };
+
+      function setLoginStatus(msg, type = 'info') {
+        const el = document.getElementById('login-status');
+        if (!el) return;
+        if (!msg) {
+          el.classList.add('hidden');
+          return;
+        }
+        el.classList.remove('hidden');
+        el.textContent = msg;
+        if (type === 'error') {
+          el.className = 'mt-3.5 text-center text-xs font-bold text-rose-200 bg-rose-950/80 border border-rose-400/50 rounded-xl py-2.5 px-3';
+        } else if (type === 'success') {
+          el.className = 'mt-3.5 text-center text-xs font-bold text-emerald-200 bg-emerald-950/80 border border-emerald-400/50 rounded-xl py-2.5 px-3';
+        } else {
+          el.className = 'mt-3.5 text-center text-xs font-bold text-amber-200 bg-amber-500/15 border border-amber-400/35 rounded-xl py-2.5 px-3';
+        }
+      }
+
+      function updateAccountUI() {
+        const loggedIn = Boolean(auth.user);
+        const headerBadge = document.getElementById('header-user-badge');
+        const headerLogout = document.getElementById('btn-logout');
+        const headerLobby = document.getElementById('btn-lobby');
+        if (headerBadge) {
+          headerBadge.classList.toggle('hidden', !loggedIn);
+          if (loggedIn) {
+            headerBadge.textContent = `${auth.user.id} · ${Number(auth.user.points).toLocaleString('ko-KR')}P`;
+          }
+        }
+        if (headerLogout) headerLogout.classList.toggle('hidden', !loggedIn);
+        if (headerLobby) headerLobby.classList.toggle('hidden', !loggedIn);
+
+        if (loggedIn) {
+          const lobbyId = document.getElementById('lobby-user-id');
+          const lobbyPts = document.getElementById('lobby-user-points');
+          if (lobbyId) lobbyId.textContent = auth.user.id;
+          if (lobbyPts) lobbyPts.textContent = `${Number(auth.user.points).toLocaleString('ko-KR')}P`;
+        }
+      }
+
+      function completeLogin(user) {
+        auth.user = { id: user.id, points: Number(user.points ?? INITIAL_POINTS) };
+        profile.nickname = auth.user.id;
+        profile.avatar = '👤';
+        setLoginStatus('');
+        document.getElementById('issued-account-box').classList.add('hidden');
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('lobby-screen').classList.remove('hidden');
+        state.screen = 'lobby';
+        updateAccountUI();
+        sfx.meld();
+        showToast(`${auth.user.id}님 환영합니다! 보유 ${auth.user.points.toLocaleString('ko-KR')}P`, 'success');
+      }
+
+      function logoutUser() {
+        cleanupNetwork();
+        auth.user = null;
+        auth.lastSettledRoundKey = '';
+        profile.nickname = '';
+        state.screen = 'login';
+        document.getElementById('result-modal').classList.add('hidden');
+        document.getElementById('privacy-modal').classList.add('hidden');
+        document.getElementById('waiting-room-screen').classList.add('hidden');
+        document.getElementById('game-screen').classList.add('hidden');
+        document.getElementById('lobby-screen').classList.add('hidden');
+        document.getElementById('round-badge').classList.add('hidden');
+        document.getElementById('login-screen').classList.remove('hidden');
+        document.getElementById('login-pw').value = '';
+        updateAccountUI();
+        showToast('로그아웃되었습니다.', 'info');
+      }
+
+      function settleUserPoints(delta, roundKey) {
+        if (!auth.user || !roundKey || auth.lastSettledRoundKey === roundKey) return;
+        auth.lastSettledRoundKey = roundKey;
+        const numDelta = Number(delta) || 0;
+        if (numDelta === 0) return;
+        auth.user.points = Number(auth.user.points) + numDelta;
+        AccountDB.addPoints(auth.user.id, numDelta);
+        updateAccountUI();
+      }
 
       const config = {
         lobbyTab: 'online', // 'online' | 'offline'
@@ -862,7 +1234,7 @@
 
       /* ==================== CORE GAME STATE ==================== */
       const state = {
-        screen: 'lobby', // 'lobby' | 'waiting' | 'game'
+        screen: 'login', // 'login' | 'lobby' | 'waiting' | 'game'
         round: 1,
         players: [],
         deck: [],
@@ -1419,9 +1791,11 @@
           setOnlineStatus('이 브라우저에서는 WebSocket을 지원하지 않습니다.', true);
           return;
         }
-        const nick = document.getElementById('input-nickname').value.trim() || profile.nickname;
-        profile.nickname = nick;
-        saveProfile(profile.nickname, profile.avatar);
+        if (!auth.user) {
+          showToast('먼저 로그인해주세요.', 'warn');
+          return;
+        }
+        profile.nickname = auth.user.id;
 
         cleanupNetwork(false);
         const code = String(Math.floor(1000 + Math.random() * 9000));
@@ -1710,9 +2084,11 @@
           sfx.error();
           return;
         }
-        const nick = document.getElementById('input-nickname').value.trim() || profile.nickname;
-        profile.nickname = nick;
-        saveProfile(profile.nickname, profile.avatar);
+        if (!auth.user) {
+          showToast('먼저 로그인해주세요.', 'warn');
+          return;
+        }
+        profile.nickname = auth.user.id;
 
         cleanupNetwork(false);
         const clientId = makeClientId('h5guest');
@@ -2059,6 +2435,7 @@
         }
         state.hintCardIds.clear();
 
+        document.getElementById('login-screen').classList.add('hidden');
         document.getElementById('lobby-screen').classList.add('hidden');
         document.getElementById('waiting-room-screen').classList.add('hidden');
         document.getElementById('game-screen').classList.remove('hidden');
@@ -2080,6 +2457,10 @@
 
         if (state.phase === 'round_over' && state.lastResultModal) {
           const r = state.lastResultModal;
+          if (!r.aborted && Array.isArray(r.deltas)) {
+            const myDelta = r.deltas[state.viewingPlayerIdx] || 0;
+            settleUserPoints(myDelta, `${net.roomCode}_${state.round}_${r.title}`);
+          }
           showResultModal(r.winnerIdx, r.deltas, r.title, r.subtitle, r.isHula, Boolean(r.aborted), r.ranks || null);
         } else {
           document.getElementById('result-modal').classList.add('hidden');
@@ -2142,6 +2523,7 @@
       /* ==================== WAITING ROOM UI ==================== */
       function openWaitingRoomScreen() {
         state.screen = 'waiting';
+        document.getElementById('login-screen').classList.add('hidden');
         document.getElementById('lobby-screen').classList.add('hidden');
         document.getElementById('game-screen').classList.add('hidden');
         document.getElementById('round-badge').classList.add('hidden');
@@ -2319,23 +2701,7 @@
 
       /* ==================== LOBBY RENDERING ==================== */
       function renderLobby() {
-        const avatarPicker = document.getElementById('avatar-picker');
-        avatarPicker.innerHTML = AVATARS.map(av => `
-          <button type="button" data-pick-avatar="${av}" class="w-9 h-9 rounded-xl text-lg flex items-center justify-center border transition ${
-            profile.avatar === av ? 'bg-amber-400/25 border-amber-400 scale-105' : 'bg-white/5 border-white/10 hover:bg-white/10'
-          }">${av}</button>
-        `).join('');
-        avatarPicker.querySelectorAll('[data-pick-avatar]').forEach(btn => {
-          btn.addEventListener('click', () => {
-            profile.avatar = btn.dataset.pickAvatar;
-            saveProfile(profile.nickname, profile.avatar);
-            sfx.select();
-            renderLobby();
-          });
-        });
-
-        const nickInput = document.getElementById('input-nickname');
-        if (!nickInput.value) nickInput.value = profile.nickname;
+        updateAccountUI();
       }
 
       /* ==================== GAME LIFECYCLE ==================== */
@@ -2348,13 +2714,20 @@
 
       function returnToLobby() {
         cleanupNetwork();
-        state.screen = 'lobby';
         document.getElementById('result-modal').classList.add('hidden');
         document.getElementById('privacy-modal').classList.add('hidden');
         document.getElementById('waiting-room-screen').classList.add('hidden');
         document.getElementById('game-screen').classList.add('hidden');
         document.getElementById('round-badge').classList.add('hidden');
-        document.getElementById('lobby-screen').classList.remove('hidden');
+        if (!auth.user) {
+          state.screen = 'login';
+          document.getElementById('lobby-screen').classList.add('hidden');
+          document.getElementById('login-screen').classList.remove('hidden');
+        } else {
+          state.screen = 'lobby';
+          document.getElementById('login-screen').classList.add('hidden');
+          document.getElementById('lobby-screen').classList.remove('hidden');
+        }
         renderLobby();
       }
 
@@ -2905,6 +3278,9 @@
         state.players.forEach((p, idx) => {
           p.totalScore += deltas[idx];
         });
+        if (auth.user && typeof deltas[state.viewingPlayerIdx] === 'number') {
+          settleUserPoints(deltas[state.viewingPlayerIdx], `${net.roomCode || 'local'}_${state.round}_${title}`);
+        }
         state.roundHistory.push({
           round: state.round,
           winnerName: state.players[winnerIdx].name,
@@ -3275,7 +3651,7 @@
         }
 
         // 5. Player Dock
-        document.getElementById('active-player-name').textContent = `${viewer.avatar} ${viewer.name}`;
+        document.getElementById('active-player-name').textContent = `ID: ${viewer.name}`;
         document.getElementById('hand-points-badge').textContent = `손패 ${handPoints(viewer.hand)}점 (${viewer.hand.length}장)`;
         document.getElementById('hula-eligible-badge').classList.toggle('hidden', viewer.hasMeldedBeforeThisTurn);
 
@@ -3461,10 +3837,71 @@
       /* ==================== EVENT BINDINGS ==================== */
 
 
-      document.getElementById('input-nickname').addEventListener('input', e => {
-        profile.nickname = e.target.value.trim() || profile.nickname;
-        saveProfile(profile.nickname, profile.avatar);
+      // Login & ID Issuance Controls
+      document.getElementById('btn-toggle-pw-vis').addEventListener('click', () => {
+        const pwInp = document.getElementById('login-pw');
+        const isHidden = pwInp.type === 'password';
+        pwInp.type = isHidden ? 'text' : 'password';
       });
+
+      document.getElementById('btn-issue-id').addEventListener('click', async () => {
+        sfx.init();
+        const btn = document.getElementById('btn-issue-id');
+        btn.disabled = true;
+        setLoginStatus('새 ID를 발급하고 50,000P를 적립하는 중...');
+        const reqId = document.getElementById('login-id').value;
+        const res = await AccountDB.issueAccount(reqId);
+        btn.disabled = false;
+
+        if (!res.ok) {
+          setLoginStatus(res.error, 'error');
+          sfx.error();
+          return;
+        }
+
+        auth.lastIssued = res.user;
+        document.getElementById('login-id').value = res.user.id;
+        document.getElementById('login-pw').value = res.user.password;
+        document.getElementById('issued-id-val').textContent = res.user.id;
+        document.getElementById('issued-pw-val').textContent = res.user.password;
+        document.getElementById('issued-account-box').classList.remove('hidden');
+        setLoginStatus(`ID [${res.user.id}] 발급 완료! (50,000P 지급)`, 'success');
+        sfx.thankyou();
+      });
+
+      document.getElementById('btn-copy-issued').addEventListener('click', () => {
+        if (!auth.lastIssued) return;
+        const txt = `훌라 5 계정 | ID: ${auth.lastIssued.id} / 비밀번호: ${auth.lastIssued.password}`;
+        copyTextToClipboard(txt, 'ID와 비밀번호가 복사되었습니다!');
+      });
+
+      document.getElementById('btn-use-issued').addEventListener('click', () => {
+        if (!auth.lastIssued) return;
+        sfx.init();
+        completeLogin(auth.lastIssued);
+      });
+
+      document.getElementById('login-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        sfx.init();
+        const btn = document.getElementById('btn-login');
+        btn.disabled = true;
+        setLoginStatus('계정 정보를 확인하는 중...');
+        const idVal = document.getElementById('login-id').value;
+        const pwVal = document.getElementById('login-pw').value;
+        const res = await AccountDB.login(idVal, pwVal);
+        btn.disabled = false;
+
+        if (!res.ok) {
+          setLoginStatus(res.error, 'error');
+          sfx.error();
+          return;
+        }
+        completeLogin(res.user);
+      });
+
+      document.getElementById('btn-logout').addEventListener('click', logoutUser);
+      document.getElementById('btn-lobby-logout').addEventListener('click', logoutUser);
 
       document.getElementById('btn-create-room').addEventListener('click', () => {
         sfx.init();
@@ -3830,7 +4267,7 @@
           if (roomParam && /^\d{4}$/.test(roomParam)) {
             config.lobbyTab = 'online';
             document.getElementById('input-room-code').value = roomParam;
-            showToast(`초대 링크로 방 #${roomParam} 코드가 입력되었습니다. 입장하기를 눌러주세요!`, 'info');
+            showToast(`초대 링크로 방 #${roomParam} 코드가 준비되었습니다. 로그인 후 입장해주세요!`, 'info');
           }
         } catch (_) {}
       }
